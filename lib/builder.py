@@ -598,7 +598,7 @@ def build_iso():
     _run([
         "sudo", "rsync", "-a",
         # 1) boot/ 以下を丸ごと
-        "--include=boot/", "--include=boot/**",
+        # "--include=boot/", "--include=boot/**",
         # 2) UEFI 用の EFI ディレクトリ
         "--include=EFI/",  "--include=EFI/**",
         # 3) GRUB モジュール（i386-pc, x86_64-efi など）
@@ -705,6 +705,15 @@ def build_iso():
 
     print(f"Applied branded grub.cfg from {grub_tpl} to BIOS and UEFI")
     
+    # UEFI向けにも同じ grub.cfg をコピー
+    uefi_grub_cfg_path = ISO / "EFI" / "BOOT" / "grub.cfg"
+    _run([
+        "sudo", "cp",
+        str(ISO / "boot" / "grub" / "grub.cfg"),
+        str(uefi_grub_cfg_path)
+    ])
+    print(f"Copied grub.cfg to UEFI path: {uefi_grub_cfg_path}")
+
     # ——— ISO ルートに live カーネル/初期RAMをコピー ———
     live_dir = ISO / "live"
     _run(["sudo", "rm", "-rf", str(live_dir)])
