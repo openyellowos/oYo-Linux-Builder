@@ -16,9 +16,6 @@ flatpak
 # アーカイブ操作 GUI
 file-roller
 
-# テキストエディタ
-gedit
-
 # 電卓
 gnome-calculator
 
@@ -27,9 +24,6 @@ gnome-characters
 
 # ディスク管理ツール
 gnome-disk-utility
-
-# フォントプレビュー
-gnome-font-viewer
 
 # システムログビューア
 gnome-logs
