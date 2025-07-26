@@ -73,3 +73,10 @@ xwayland
 
 # 初回ログイン時のユーザー DIR 作成
 xdg-user-dirs-gtk
+
+#ターミナルのtabキーで補完
+bash-completion
+
+#指紋認証
+fprintd
+libpam-fprintd
