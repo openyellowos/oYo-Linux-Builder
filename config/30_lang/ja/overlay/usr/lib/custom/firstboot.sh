@@ -7,34 +7,70 @@
 #*****************************************************************************************************************
 
 #----------------------------------------------------------------------------------------------------------------
-# calamaresインストーラーで選択したキーボードレイアウトを取得($LAYOUT)
+# calamaresでjpキーボードを選択した時
+# /etc/default/keyboardファイルに、「us,jp」という設定を追加する
+# 「us」は不要であるため、削除を行う
+#
+# 処理例
+#   処理前      処理後
+#   us,jp	jp
+#   jp,us	us
+#   us,de	de
+#   us,us	us
+#   us	        us
+#   fr	        fr
 #----------------------------------------------------------------------------------------------------------------
-#localectl | 3行目を取得 | X11 Layout:を削除 | 空白除去
-LAYOUT=$(localectl | sed -n 3p | sed -e "s/X11 Layout://g" | sed 's/^ *\| *$//')
 
+KEYBD=/etc/default/keyboard
+XORG=/etc/X11/xorg.conf.d/00-keyboard.conf
+
+# 1) 現在のキーボード設定を読み込む
+XKBMODEL="pc105"
+XKBLAYOUT="jp"
+[ -f "$KEYBD" ] && . "$KEYBD"
+
+# 2) カンマ区切りの末尾要素を採用
+IFS=',' read -ra LAYOUTS <<< "$XKBLAYOUT"
+FINAL_LAYOUT="${LAYOUTS[-1]:-$XKBLAYOUT}"
+
+echo "[fix-keyboard] '$XKBLAYOUT' → '$FINAL_LAYOUT' (model: $XKBMODEL)"
+
+# 3) /etc/default/keyboard を更新
+sed -E -i "s/^XKBLAYOUT=.*/XKBLAYOUT=\"${FINAL_LAYOUT}\"/" "$KEYBD" \
+  || echo "XKBLAYOUT=\"${FINAL_LAYOUT}\"" >> "$KEYBD"
+
+# 4) /etc/X11/xorg.conf.d を生成
+mkdir -p "$(dirname "$XORG")"
+cat > "$XORG" <<EOF
+Section "InputClass"
+    Identifier "Keyboard defaults"
+    MatchIsKeyboard "on"
+    Option "XkbModel"   "${XKBMODEL}"
+    Option "XkbLayout"  "${FINAL_LAYOUT}"
+EndSection
+EOF
 
 #----------------------------------------------------------------------------------------------------------------
-# 10-input-sourcesの「'xkb', 'XX'」を「'xkb', '$LAYOUT'」に書き換え
+# fcitxのprofileファイルに
+# calamaresで選択したキーボードレイアウトを設定する
 #----------------------------------------------------------------------------------------------------------------
-cat /etc/dconf/db/local.d/10-input-sources | sed -e s/"'xkb', '.*'"/"'xkb', '$LAYOUT'"/g > hoge.txt
+
+# 10-input-sourcesの「'xkb', 'XX'」を「'xkb', '$FINAL_LAYOUT'」に書き換え
+cat /etc/dconf/db/local.d/10-input-sources | sed -e s/"'xkb', '.*'"/"'xkb', '$FINAL_LAYOUT'"/g > hoge.txt
 mv hoge.txt /etc/dconf/db/local.d/10-input-sources
 dconf update
 
-#----------------------------------------------------------------------------------------------------------------
-# profileファイルの「Default Layout=」に「$LAYOUT」をセット
-#----------------------------------------------------------------------------------------------------------------
-cat /usr/lib/custom/profile | sed -e s/"Default Layout=.*"/"Default Layout=$LAYOUT"/g > hoge.txt
+# profileファイルの「Default Layout=」に「$FINAL_LAYOUT」をセット
+cat /usr/lib/custom/profile | sed -e s/"Default Layout=.*"/"Default Layout=$FINAL_LAYOUT"/g > hoge.txt
+mv hoge.txt /usr/lib/custom/profile
+
+# profileファイルの「Name=keyboard-」に「$FINAL_LAYOUT」をセット
+cat /usr/lib/custom/profile | sed -e s/"Name=keyboard-.*"/"Name=keyboard-$FINAL_LAYOUT"/g > hoge.txt
 mv hoge.txt /usr/lib/custom/profile
 
 #----------------------------------------------------------------------------------------------------------------
-# profileファイルの「Name=keyboard-」に「$LAYOUT」をセット
-#----------------------------------------------------------------------------------------------------------------
-cat /usr/lib/custom/profile | sed -e s/"Name=keyboard-.*"/"Name=keyboard-$LAYOUT"/g > hoge.txt
-mv hoge.txt /usr/lib/custom/profile
-
-#----------------------------------------------------------------------------------------------------------------
-#　インストール時に作成されるユーザーのhomeディレクトリのprofileファイルを
-#　修正したファイルで上書き
+# インストール時に作成されるユーザーのhomeディレクトリのprofileファイルを
+# 修正したファイルで上書き
 #----------------------------------------------------------------------------------------------------------------
 dir_path="/home/*"
 #HOMEディレクトリ直下にあるディレクトリのパスを取得

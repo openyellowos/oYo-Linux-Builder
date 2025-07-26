@@ -1,0 +1,13 @@
+[Unit]
+Description=A service that runs only once after installation
+After=network.target
+
+[Service]
+ExecStart=/bin/bash -c "/usr/lib/custom/firstboot.sh \
+        && /usr/bin/systemctl disable firstboot.service"
+ExecStop=/bin/kill ${MAINPID}
+Restart=no
+Type=oneshot
+
+[Install]
+WantedBy=multi-user.target
