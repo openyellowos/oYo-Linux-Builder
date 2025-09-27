@@ -73,6 +73,7 @@ nano
 netbase
 netplan.io
 network-manager-config-connectivity-debian
+networkd-dispatcher
 pciutils
 pipewire-alsa
 pipewire-audio
