@@ -23,7 +23,7 @@ Custom Linux ISO build tool
 - root権限 または sudo  
 - 以下パッケージ（ホスト側）  
   ```
-  mmdebstrap rsync squashfs-tools grub-pc-bin grub-efi-amd64-bin grub-efi-amd64-signed shim-signed xorriso dosfstools mtools python3-venv python3-pip git
+  mmdebstrap rsync squashfs-tools grub-pc-bin grub-efi-amd64-bin grub-efi-amd64-signed shim-signed xorriso dosfstools mtools python3-venv python3-pip git debian-archive-keyring
   ```
 
 ---

@@ -495,7 +495,8 @@ def _prepare_chroot(codename: str):
             ]
 
     # ── 2) mmdebstrap に渡す必須パッケージ群 ──
-    base_pkgs = ["bash", "coreutils"]
+    # non-debian 環境でのビルド時、GPG鍵不足で失敗する問題の対策
+    base_pkgs = ["bash", "coreutils", "debian-archive-keyring"]
     include_pkgs = sorted(set(base_pkgs + pkg_list))
 
     # Secure Boot対応：署名済みカーネルの確実なインストール
@@ -528,6 +529,9 @@ def _prepare_chroot(codename: str):
         # ISOサイズ削減のため、"minbase"を指定したいが
         # calamaresインストールでエラーになるため"important"を指定する
         "--variant=important",
+
+        # non-debian環境でのGPG鍵エラー対策
+        "--keyring=/usr/share/keyrings/debian-archive-keyring.gpg",
 
         # ── 並列ダウンロード・リトライ設定 ──
         "--aptopt=Acquire::Queue-Mode \"host\";",
