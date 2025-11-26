@@ -70,6 +70,9 @@ gnome-user-share
 #GNOME パーティションエディタ
 gparted
 
+#install deb files
+gdebi
+
 #管理操作を行うための Nautilus の拡張機能
 nautilus-admin
 
