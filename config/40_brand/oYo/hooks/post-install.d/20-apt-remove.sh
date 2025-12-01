@@ -11,6 +11,7 @@ set -e
 apt remove gnome-clocks -y
 apt remove gnome-contacts -y
 apt remove gnome-calendar -y
+apt remove gnome-characters -y
 apt remove gnome-maps -y
 apt remove gnome-user-docs -y
 apt remove totem -y
