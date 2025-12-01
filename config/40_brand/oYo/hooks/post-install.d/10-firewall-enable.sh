@@ -10,3 +10,6 @@ set -e
 #firewallの有効化
 ufw enable
 
+#gufwが起動しない問題を修正
+chmod 755 /etc
+chmod 755 /lib
