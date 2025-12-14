@@ -33,8 +33,3 @@ root	ALL=(ALL:ALL) ALL
 ## Same thing without a password
 # %wheel ALL=(ALL) NOPASSWD: ALL
 
-
-## sudo without password for live user
-live ALL=NOPASSWD: ALL
-
-
