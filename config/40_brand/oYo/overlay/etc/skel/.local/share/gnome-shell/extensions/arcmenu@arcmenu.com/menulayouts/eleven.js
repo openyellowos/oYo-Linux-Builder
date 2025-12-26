@@ -92,7 +92,7 @@ export class Layout extends BaseMenuLayout {
             style: 'padding-bottom: 10px; spacing: 8px;',
             style_class: 'arcmenu-margin-box',
         });
-        this.applicationsScrollBox = this._createScrollBox({
+        this.applicationsScrollBox = this._createScrollView({
             x_expand: true,
             y_expand: true,
             x_align: Clutter.ActorAlign.FILL,
@@ -146,7 +146,7 @@ export class Layout extends BaseMenuLayout {
         this.applicationsGrid.halign = Clutter.ActorAlign.FILL;
 
         ArcMenuManager.settings.connectObject('changed::eleven-layout-extra-shortcuts', () => this._createExtraButtons(), this);
-        ArcMenuManager.settings.connectObject('changed::eleven-disable-frequent-apps', () => this.setDefaultMenuView(), this);
+        ArcMenuManager.settings.connectObject('changed::eleven-show-frequent-apps', () => this.setDefaultMenuView(), this);
 
         this._createExtraButtons();
         this.updateStyle();
@@ -204,7 +204,7 @@ export class Layout extends BaseMenuLayout {
         });
         this.frequentAppsList = [];
 
-        if (ArcMenuManager.settings.get_boolean('eleven-disable-frequent-apps'))
+        if (!ArcMenuManager.settings.get_boolean('eleven-show-frequent-apps'))
             return;
 
         const mostUsed = Shell.AppUsage.get_default().get_most_used();
@@ -292,7 +292,7 @@ export class Layout extends BaseMenuLayout {
         this.loadFrequentApps();
         super.displayPinnedApps();
 
-        if (this.frequentAppsList.length > 0 && !ArcMenuManager.settings.get_boolean('eleven-disable-frequent-apps')) {
+        if (this.frequentAppsList.length > 0 && ArcMenuManager.settings.get_boolean('eleven-show-frequent-apps')) {
             this._displayAppList(this.frequentAppsList, Constants.CategoryType.HOME_SCREEN, this.shortcutsGrid);
             if (!this.applicationsBox.contains(this.shortcutsBox))
                 this.applicationsBox.add_child(this.shortcutsBox);

@@ -58,8 +58,8 @@ export class Layout extends BaseMenuLayout {
         });
         this.add_child(this._mainBox);
 
-        const userAvatar = ArcMenuManager.settings.get_boolean('disable-user-avatar');
-        if (!userAvatar) {
+        const userAvatar = ArcMenuManager.settings.get_boolean('show-user-avatar');
+        if (userAvatar) {
             const userMenuBox = new St.BoxLayout({
                 x_expand: true,
                 y_expand: true,
@@ -83,7 +83,7 @@ export class Layout extends BaseMenuLayout {
         this._mainBox.add_child(this.searchEntry);
 
         this.applicationsBox = new St.BoxLayout({...getOrientationProp(true)});
-        this.applicationsScrollBox = this._createScrollBox({
+        this.applicationsScrollBox = this._createScrollView({
             x_expand: false,
             y_expand: false,
             x_align: Clutter.ActorAlign.START,
@@ -187,7 +187,7 @@ export class Layout extends BaseMenuLayout {
         headerBox.add_child(separator);
         headerBox.add_child(this.createLabelRow(_('Pinned')));
 
-        this.pinnedAppsScrollBox = this._createScrollBox({
+        this.pinnedAppsScrollBox = this._createScrollView({
             x_expand: true,
             y_expand: true,
             y_align: Clutter.ActorAlign.START,

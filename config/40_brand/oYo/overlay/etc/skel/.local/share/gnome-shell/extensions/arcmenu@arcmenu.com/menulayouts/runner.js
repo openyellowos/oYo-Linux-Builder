@@ -1,4 +1,5 @@
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
@@ -13,7 +14,7 @@ import {getOrientationProp} from '../utils.js';
 
 import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-const padding = 10;
+const Spacing = 6;
 
 export class Layout extends BaseMenuLayout {
     static {
@@ -57,6 +58,8 @@ export class Layout extends BaseMenuLayout {
             can_hide_search: false,
         });
 
+        this.style = `spacing: ${Spacing}px;`;
+
         this.activeMenuItem = null;
 
         this.updateLocation();
@@ -72,9 +75,10 @@ export class Layout extends BaseMenuLayout {
 
         this.topBox = new St.BoxLayout({
             x_expand: true,
-            y_expand: true,
+            y_expand: false,
+            y_align: Clutter.ActorAlign.START,
             ...getOrientationProp(false),
-            style: `margin: ${padding}px ${padding}px 0px 0px; spacing: ${padding}px;`,
+            style: `spacing: ${Spacing}px;`,
         });
         this.runnerTweaksButton = new RunnerTweaksButton(this);
         this.runnerTweaksButton.set({
@@ -83,34 +87,55 @@ export class Layout extends BaseMenuLayout {
             y_align: this.searchEntry.y_align = Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.CENTER,
         });
-
         this.topBox.add_child(this.searchEntry);
         this.topBox.add_child(this.runnerTweaksButton);
-        this.add_child(this.topBox);
+        ArcMenuManager.settings.bind('runner-show-settings-button', this.runnerTweaksButton, 'visible', Gio.SettingsBindFlags.DEFAULT);
 
-        this.applicationsScrollBox = this._createScrollBox({
+        this.applicationsScrollBox = this._createScrollView({
             x_expand: true,
-            y_expand: false,
+            y_expand: true,
             y_align: Clutter.ActorAlign.START,
             x_align: Clutter.ActorAlign.FILL,
             style_class: this._disableFadeEffect ? '' : 'small-vfade',
-            style: `padding: ${padding}px 0px 0px 0px;`,
+            visible: false,
         });
 
-        this.add_child(this.applicationsScrollBox);
         this.applicationsBox = new St.BoxLayout({
             ...getOrientationProp(true),
-            style: `padding: 0px ${padding}px 0px 0px;`,
         });
         this._addChildToParent(this.applicationsScrollBox, this.applicationsBox);
+
+        ArcMenuManager.settings.connectObject('changed::runner-searchbar-location', () => this._setSearchbarLocation(), this);
+        ArcMenuManager.settings.connectObject('changed::runner-menu-height-static', () => this.updateLocation(), this);
+        this._setSearchbarLocation();
 
         this.setDefaultMenuView();
         this.updateWidth();
         this._connectAppChangedEvents();
     }
 
+    _setSearchbarLocation() {
+        this.remove_all_children();
+        const searchbarLocation = ArcMenuManager.settings.get_enum('runner-searchbar-location');
+        if (searchbarLocation === Constants.SearchbarLocation.TOP) {
+            this.add_child(this.topBox);
+            this.add_child(this.applicationsScrollBox);
+            this.topBox.set({
+                y_align: Clutter.ActorAlign.START,
+                y_expand: false,
+            });
+        } else if (searchbarLocation === Constants.SearchbarLocation.BOTTOM) {
+            this.add_child(this.applicationsScrollBox);
+            this.add_child(this.topBox);
+            this.topBox.set({
+                y_align: Clutter.ActorAlign.END,
+                y_expand: true,
+            });
+        }
+    }
+
     updateWidth(setDefaultMenuView) {
-        const width = ArcMenuManager.settings.get_int('runner-menu-width') - padding;
+        const width = ArcMenuManager.settings.get_int('runner-menu-width') - Spacing;
         this.menu_width = width;
         if (setDefaultMenuView)
             this.setDefaultMenuView();
@@ -119,7 +144,9 @@ export class Layout extends BaseMenuLayout {
     setDefaultMenuView() {
         this.activeMenuItem = null;
         super.setDefaultMenuView();
-        if (ArcMenuManager.settings.get_boolean('runner-show-frequent-apps'))
+        const showFrequentApps = ArcMenuManager.settings.get_boolean('runner-show-frequent-apps');
+        this.applicationsScrollBox.visible = showFrequentApps;
+        if (showFrequentApps)
             this.displayFrequentApps();
     }
 
@@ -129,6 +156,7 @@ export class Layout extends BaseMenuLayout {
             return;
 
         const labelRow = this.createLabelRow(_('Frequent Apps'));
+        labelRow.style = `padding-bottom: ${Spacing}px;`;
         this.applicationsBox.add_child(labelRow);
 
         const frequentAppsList = [];
@@ -150,6 +178,13 @@ export class Layout extends BaseMenuLayout {
                 this.activeMenuItem = item;
             }
         }
+    }
+
+    _onSearchEntryChanged(searchEntry, searchString) {
+        if (!searchEntry.isEmpty())
+            this.applicationsScrollBox.visible = true;
+
+        super._onSearchEntryChanged(searchEntry, searchString);
     }
 
     /**
@@ -174,6 +209,7 @@ export class Layout extends BaseMenuLayout {
         this.arcMenu._boxPointer.setSourceAlignment(0.5);
         this.arcMenu._arrowAlignment = 0.5;
 
+        const staticHeight = ArcMenuManager.settings.get_boolean('runner-menu-height-static');
         const runnerHeight = ArcMenuManager.settings.get_int('runner-menu-height');
         const runnerWidth = ArcMenuManager.settings.get_int('runner-menu-width');
         const runnerFontSize = ArcMenuManager.settings.get_int('runner-font-size');
@@ -189,8 +225,8 @@ export class Layout extends BaseMenuLayout {
 
         if (!this.topBox)
             return;
-
-        this.style = `max-height: ${runnerHeight}px; margin: 0px 0px 0px ${padding}px; width: ${runnerWidth}px;`;
+        const height = staticHeight ? 'height' : 'max-height';
+        this.style = `${height}: ${runnerHeight}px; padding: ${Spacing}px; spacing: ${Spacing}px; width: ${runnerWidth}px;`;
         if (runnerFontSize > 0) {
             this.style += `font-size: ${runnerFontSize}pt;`;
             this.searchEntry.style += `font-size: ${runnerFontSize}pt;`;

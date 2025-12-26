@@ -19,12 +19,10 @@ export const DragLocation = {
     BOTTOM_EDGE: 6,
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
 function swap(value, length) {
     return length - value - 1;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
 function animateIconPosition(icon, box, nChangedIcons) {
     if (!icon.has_allocation() || icon.allocation.equal(box) || icon.opacity === 0) {
         icon.allocate(box);
@@ -82,6 +80,7 @@ export const IconGridLayout = GObject.registerClass({
         this._height = 0;
         this._items = new Map();
         this._children = [];
+        this._visibleChildren = [];
         this._childrenMaxSize = null;
     }
 
@@ -109,7 +108,7 @@ export const IconGridLayout = GObject.registerClass({
 
         let columns = 0;
         if (this.firstRowAlign === Clutter.ActorAlign.CENTER) {
-            const visibleChildren = this._children.filter(child => child.visible);
+            const visibleChildren = this._visibleChildren;
             // if the amount of visiblechildren is less than the amount of columns
             // set columns to visiblechildren.length in order to center the items
             columns = visibleChildren.length < this.columns ? visibleChildren.length : this.columns;
@@ -127,6 +126,10 @@ export const IconGridLayout = GObject.registerClass({
         return leftEmptySpace;
     }
 
+    _updateVisibleChildren() {
+        this._visibleChildren = this._children.filter(actor => actor.visible);
+    }
+
     _unlinkItem(item) {
         const itemData = this._items.get(item);
 
@@ -142,6 +145,7 @@ export const IconGridLayout = GObject.registerClass({
 
         const itemIndex = this._children.indexOf(item);
         this._children.splice(itemIndex, 1);
+        this._updateVisibleChildren();
     }
 
     _addItem(item, index) {
@@ -153,6 +157,7 @@ export const IconGridLayout = GObject.registerClass({
             destroyId: item.connect('destroy', () => this._removeItemData(item)),
             visibleId: item.connect('notify::visible', () => {
                 this._shouldEaseItems = true;
+                this._updateVisibleChildren();
             }),
             queueRelayoutId: item.connect('queue-relayout', () => {
                 this._childrenMaxSize = null;
@@ -160,6 +165,7 @@ export const IconGridLayout = GObject.registerClass({
         });
 
         this._children.splice(index, 0, item);
+        this._updateVisibleChildren();
     }
 
     vfunc_set_container(container) {
@@ -171,7 +177,7 @@ export const IconGridLayout = GObject.registerClass({
     }
 
     vfunc_get_preferred_height() {
-        const children = this._children;
+        const children = this._visibleChildren;
         const totalColumns = this.columns;
 
         let minRowHeight = 0;
@@ -182,9 +188,6 @@ export const IconGridLayout = GObject.registerClass({
 
         for (let i = 0; i < children.length; i += 1) {
             const child = children[i];
-            if (!child.visible)
-                continue;
-
             const isSeparator = child instanceof MW.ArcMenuSeparator;
             const [childMinHeight, childNatHeight] = child.get_preferred_height(-1);
 
@@ -214,7 +217,7 @@ export const IconGridLayout = GObject.registerClass({
     }
 
     vfunc_allocate() {
-        const children = this._children;
+        const children = this._visibleChildren;
         const shouldEaseItems = this._shouldEaseItems;
         const sizeChanged = this._sizeChanged;
         const isRtl = Clutter.get_default_text_direction() === Clutter.TextDirection.RTL;
@@ -283,8 +286,10 @@ export const IconGridLayout = GObject.registerClass({
     }
 
     addItem(item, index = -1) {
-        if (this._items.has(item))
-            throw new Error(`Item ${item} already added to IconGridLayout`);
+        if (this._items.has(item)) {
+            console.log(`ArcMenu Error: Item ${item} already added to IconGridLayout`);
+            return;
+        }
 
         if (!this._container)
             return;
@@ -300,8 +305,10 @@ export const IconGridLayout = GObject.registerClass({
     }
 
     moveItem(item, newPosition) {
-        if (!this._items.has(item))
-            throw new Error(`Item ${item} is not part of the IconGridLayout`);
+        if (!this._items.has(item)) {
+            console.log(`ArcMenu Error: Item ${item} is not part of the IconGridLayout`);
+            return;
+        }
 
         this._shouldEaseItems = true;
 
@@ -311,8 +318,10 @@ export const IconGridLayout = GObject.registerClass({
     }
 
     removeItem(item) {
-        if (!this._items.has(item))
-            throw new Error(`Item ${item} is not part of the IconGridLayout`);
+        if (!this._items.has(item)) {
+            console.log(`ArcMenu Error: Item ${item} is not part of the IconGridLayout`);
+            return;
+        }
 
         if (!this._container)
             return;

@@ -17,6 +17,7 @@
  */
 /* exported AskRenamePopup */
 'use strict';
+const Atk = imports.gi.Atk;
 const Gtk = imports.gi.Gtk;
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
@@ -51,6 +52,7 @@ var AskRenamePopup = class extends SignalManager.SignalManager {
             halign: Gtk.Align.START,
         });
         contentBox.attach(label, 0, 0, 2, 1);
+        contentBox.get_accessible().add_relationship(Atk.RelationType.LABELLED_BY, label.get_accessible());
         this._textArea = new Gtk.Entry();
         this._textArea.text = fileItem.fileName;
         contentBox.attach(this._textArea, 0, 1, 1, 1);

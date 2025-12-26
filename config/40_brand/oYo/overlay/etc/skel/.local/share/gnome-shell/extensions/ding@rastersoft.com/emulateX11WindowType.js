@@ -70,14 +70,30 @@ class ManageWindow {
             this._window.unminimize();
         }));
         this._signalIDs.push(window.connect('notify::maximized-vertically', () => {
-            if (!window.maximized_vertically) {
-                window.maximize(Meta.MaximizeFlags.VERTICAL);
+            if (window.is_maximized) {
+                // Gnome Shell >= 49 API
+                if (!window.is_maximized()) {
+                    window.maximize();
+                }
+            } else {
+                // Gnome Shell < 49 API
+                if (!window.maximized_vertically) {
+                    window.maximize(Meta.MaximizeFlags.VERTICAL);
+                }
             }
             this._moveIntoPlace();
         }));
         this._signalIDs.push(window.connect('notify::maximized-horizontally', () => {
-            if (!window.maximized_horizontally) {
-                window.maximize(Meta.MaximizeFlags.HORIZONTAL);
+            if (window.is_maximized) {
+                // Gnome Shell >= 49 API
+                if (!window.is_maximized()) {
+                    window.maximize();
+                }
+            } else {
+                // Gnome Shell < 49 API
+                if (!window.maximized_horizontally) {
+                    window.maximize(Meta.MaximizeFlags.HORIZONTAL);
+                }
             }
             this._moveIntoPlace();
         }));

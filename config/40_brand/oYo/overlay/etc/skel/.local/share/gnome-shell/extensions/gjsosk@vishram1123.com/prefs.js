@@ -44,6 +44,7 @@ export default class GjsOskPreferences extends ExtensionPreferences {
 		}
 
 		let layoutList = Object.keys(layouts);
+		layoutList.push("Custom")
 		let layoutLandscapeDrop = Gtk.DropDown.new_from_strings(layoutList);
 		layoutLandscapeDrop.valign = Gtk.Align.CENTER;
 		layoutLandscapeDrop.selected = settings.get_int("layout-landscape");
@@ -62,6 +63,27 @@ export default class GjsOskPreferences extends ExtensionPreferences {
 
 		layoutPortraitRow.add_suffix(layoutPortraitDrop);
 		layoutPortraitRow.activatable_widget = layoutPortraitDrop;
+
+		const customLayoutRow = new Adw.EntryRow({
+			title: _('Custom Layout')
+		});
+		layoutRow.add_row(customLayoutRow);
+
+		customLayoutRow.set_text(settings.get_string("custom-layout"));
+		customLayoutRow.set_show_apply_button(true);
+
+		const createKeyboardLayoutRow = new Adw.ActionRow({
+			title: _('Create/edit a custom keyboard layout')
+		})
+		layoutRow.add_row(createKeyboardLayoutRow)
+
+		const layoutLink = new Gtk.LinkButton({
+			label: 'Keyboard Layout Editor',
+			uri: 'https://vishram1123.github.io/gjs-osk'
+		})
+
+		createKeyboardLayoutRow.add_suffix(layoutLink)
+		createKeyboardLayoutRow.activatable_widget = layoutLink
 
 		const enableDragRow = new Adw.ActionRow({
 			title: _('Enable Dragging')
@@ -217,18 +239,73 @@ export default class GjsOskPreferences extends ExtensionPreferences {
 		defaultPosition.add_suffix(snapDrop);
 		defaultPosition.activatable_widget = snapDrop;
 
-		const soundPlayRow = new Adw.ActionRow({
-			title: _('Play sound')
+		const soundPlayRow = new Adw.ExpanderRow({
+			title: _('Play sound'),
+			show_enable_switch: true
 		});
 		behaviorGroup.add(soundPlayRow);
+		soundPlayRow.enable_expansion = settings.get_boolean('play-sound')
 
-		const soundPlayDT = new Gtk.Switch({
-			active: settings.get_boolean('play-sound'),
+		const fileRow = new Adw.ActionRow({
+			title: _('Sound file'),
+			subtitle: settings.get_string('sound-file') || _('No file selected'),
+			activatable: false, // prevent clicking the whole row
+		});
+
+		const fileButton = new Gtk.Button({
+			label: settings.get_string('sound-file') ? _('Clear') : _('Choose'),
 			valign: Gtk.Align.CENTER,
 		});
 
-		soundPlayRow.add_suffix(soundPlayDT);
-		soundPlayRow.activatable_widget = soundPlayDT;
+		fileRow.add_suffix(fileButton);
+		fileRow.activatable_widget = fileButton;
+
+		fileButton.connect('clicked', () => {
+			const currentPath = settings.get_string('sound-file');
+			if (currentPath) {
+				settings.set_string('sound-file', '');
+				fileRow.subtitle = _('No file selected');
+				fileButton.label = _('Choose');
+			} else {
+				const fileChooser = new Gtk.FileChooserNative({
+					title: _('Select OGG File'),
+					transient_for: window,
+					action: Gtk.FileChooserAction.OPEN,
+					accept_label: _('Open'),
+					cancel_label: _('Cancel'),
+				});
+
+				const filter = new Gtk.FileFilter();
+				filter.add_mime_type('audio/ogg');
+				filter.set_name(_('OGG files'));
+				fileChooser.add_filter(filter);
+
+				fileChooser.connect('response', (dlg, response) => {
+					if (response === Gtk.ResponseType.ACCEPT) {
+						const file = dlg.get_file();
+						if (file) {
+							const path = file.get_path();
+							settings.set_string('sound-file', path);
+							fileRow.subtitle = path;
+							fileButton.label = _('Clear');
+
+							// Optionally play the file immediately
+							try {
+								let player = global.display.get_sound_player();
+								player.play_from_file(path, null);
+							} catch (e) {
+								logError(e, 'Failed to play sound file');
+							}
+						}
+					}
+					dlg.destroy();
+				});
+
+				fileChooser.show();
+			}
+		});
+
+		soundPlayRow.add_row(fileRow);
 
 		const appearanceGroup = new Adw.PreferencesGroup({
 			title: _("Appearance")
@@ -405,7 +482,7 @@ export default class GjsOskPreferences extends ExtensionPreferences {
 		context.add_class("title-1");
 
 		let another_label = new Gtk.Label({
-			label: _("Autorelease ") + `cde30dd`
+			label: _("Autorelease ") + `fc0fbd0`
 		});
 
 		let links_pref_group = new Adw.PreferencesGroup();
@@ -447,6 +524,9 @@ export default class GjsOskPreferences extends ExtensionPreferences {
 
 		settings.bind("layout-landscape", layoutLandscapeDrop, "selected", 0);
 		settings.bind("layout-portrait", layoutPortraitDrop, "selected", 0);
+		customLayoutRow.connect("apply", () => {
+			settings.set_string("custom-layout", customLayoutRow.get_text());
+		});
 		settings.bind("enable-drag", dragEnableDT, "active", 0);
 		settings.bind("enable-tap-gesture", dragOpt, "selected", 0);
 		settings.bind("indicator-enabled", indEnabled, "active", 0);
@@ -472,7 +552,7 @@ export default class GjsOskPreferences extends ExtensionPreferences {
 		settings.bind("outer-spacing-px", numChanger_outer, "value", 0);
 		settings.bind("snap-spacing-px", numChanger_snap, "value", 0)
 		settings.bind("round-key-corners", roundKeyCDT, "active", 0);
-		settings.bind("play-sound", soundPlayDT, "active", 0);
+		settings.bind("play-sound", soundPlayRow, "enable-expansion", 0);
 		settings.bind("show-icons", showIconDT, "active", 0)
 		settings.bind("default-snap", snapDrop, "selected", 0);
 		monitorDrop.connect("notify::selected", () => {
@@ -492,6 +572,7 @@ export default class GjsOskPreferences extends ExtensionPreferences {
 		window.connect("close-request", () => {
 			settings.set_int("layout-landscape", layoutLandscapeDrop.selected);
 			settings.set_int("layout-portrait", layoutPortraitDrop.selected);
+			settings.set_string("custom-layout", customLayoutRow.get_text());
 			settings.set_boolean("enable-drag", dragEnableDT.active);
 			settings.set_int("enable-tap-gesture", dragOpt.selected);
 			settings.set_boolean("indicator-enabled", indEnabled.active);
@@ -513,7 +594,7 @@ export default class GjsOskPreferences extends ExtensionPreferences {
 			settings.set_int("outer-spacing-px", numChanger_outer.value);
 			settings.set_int("snap-spacing-px", numChanger_snap.value)
 			settings.set_boolean("round-key-corners", roundKeyCDT.active);
-			settings.set_boolean("play-sound", soundPlayDT.active);
+			settings.set_boolean("play-sound", soundPlayRow.enable_expansion);
 			settings.set_boolean("show-icons", showIconDT.active)
 			settings.set_int("default-snap", snapDrop.selected);
 			currentMonitorMap[monitors.length + ""] = monitors.map(m => { return m.get_connector() })[monitorDrop.selected];

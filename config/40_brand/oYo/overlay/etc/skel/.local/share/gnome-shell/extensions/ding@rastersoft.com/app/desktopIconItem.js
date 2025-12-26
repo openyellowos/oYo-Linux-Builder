@@ -23,7 +23,9 @@
 const Gtk = imports.gi.Gtk;
 const Gdk = imports.gi.Gdk;
 const Gio = imports.gi.Gio;
+const Atk = imports.gi.Atk;
 const GLib = imports.gi.GLib;
+const GObject = imports.gi.GObject;
 const Pango = imports.gi.Pango;
 const GdkPixbuf = imports.gi.GdkPixbuf;
 const Cairo = imports.gi.cairo;
@@ -51,6 +53,7 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
         this._lastClickButton = 0;
         this._clickCount = 0;
         this._isSelected = false;
+        this._isKeyboardSelected = false;
         this._isSpecial = false;
         this._primaryButtonPressed = false;
         this._savedCoordinates = null;
@@ -133,7 +136,7 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
         this._shieldEventBox.add(this._eventBox);
 
         this._label = new Gtk.Label();
-        this._containerAccessibility = this._iconContainer;
+        this._containerAccessibility = this.container;
         this._containerAccessibility.set_can_focus(true);
         this._labelContainer = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL, halign: Gtk.Align.CENTER});
         let labelStyleContext = this._label.get_style_context();
@@ -156,6 +159,7 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
         this.container.pack_start(this._shieldEventBox, false, false, 0);
         this.container.pack_start(this._shieldLabelEventBox, false, false, 0);
 
+        this._fullStyleContext = this.container.get_style_context();
         this._styleContext = this._iconContainer.get_style_context();
         this._labelStyleContext = this._labelContainer.get_style_context();
         this._styleContext.add_class('file-item');
@@ -460,13 +464,25 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
         if (this._isSelected && !this._styleContext.has_class('desktop-icons-selected')) {
             this._styleContext.add_class('desktop-icons-selected');
             this._labelStyleContext.add_class('desktop-icons-selected');
-            this._containerAccessibility.grab_focus();
+            if (!this._isKeyboardSelected) {
+                this._containerAccessibility.grab_focus();
+            }
         }
         if (!this._isSelected && this._styleContext.has_class('desktop-icons-selected')) {
             this._styleContext.remove_class('desktop-icons-selected');
             this._labelStyleContext.remove_class('desktop-icons-selected');
         }
+        if (this._isKeyboardSelected && !this._fullStyleContext.has_class('desktop-icons-selected')) {
+            this._fullStyleContext.add_class('desktop-icons-selected');
+            this._containerAccessibility.grab_focus();
+        }
+        if (!this._isKeyboardSelected && this._fullStyleContext.has_class('desktop-icons-selected')) {
+            this._fullStyleContext.remove_class('desktop-icons-selected');
+        }
+        this.setAccessibleName(this._getVisibleName());
     }
+
+    setAccessibleName(name) {}
 
     _setDragSource(widget) {
         widget.drag_source_set(Gdk.ModifierType.BUTTON1_MASK, null, Gdk.DragAction.MOVE | Gdk.DragAction.COPY);
@@ -776,6 +792,15 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
 
     get isSelected() {
         return this._isSelected;
+    }
+
+    get isKeyboardSelected() {
+        return this._isKeyboardSelected;
+    }
+
+    set isKeyboardSelected(status) {
+        this._isKeyboardSelected = status;
+        this._setSelectedStatus();
     }
 
     get isSpecial() {

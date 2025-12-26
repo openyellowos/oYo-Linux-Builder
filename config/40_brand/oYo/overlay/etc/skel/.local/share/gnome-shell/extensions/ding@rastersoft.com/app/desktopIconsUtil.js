@@ -107,6 +107,9 @@ function launchTerminal(workdir, command) {
         const exec = GLib.find_program_in_path(name);
         if (exec !== null) {
             const argv = [exec];
+            if (workdir && (name === 'xdg-terminal-exec')) {
+                argv.push(`--dir=${workdir}`);
+            }
             if (command) {
                 argv.push('-e');
                 argv.push(command);

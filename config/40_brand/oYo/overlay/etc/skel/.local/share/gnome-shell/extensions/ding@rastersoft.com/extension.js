@@ -483,14 +483,6 @@ class LaunchSubprocess {
         this._process_id = process_id;
         this.cancellable = new Gio.Cancellable();
         this._launcher = new Gio.SubprocessLauncher({flags: flags | Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE});
-        if (Meta.is_wayland_compositor()) {
-            try {
-                this._waylandClient = Meta.WaylandClient.new(this._launcher);
-            } catch (e) {
-                this._waylandClient = Meta.WaylandClient.new(global.context,
-                                                             this._launcher);
-            }
-        }
         this.subprocess = null;
         this.process_running = false;
         this._launch_timer = 0;
@@ -500,7 +492,22 @@ class LaunchSubprocess {
     spawnv(argv) {
         try {
             if (Meta.is_wayland_compositor()) {
-                this.subprocess = this._waylandClient.spawnv(global.display, argv);
+                if (Meta.WaylandClient.new_subprocess) {
+                    // New API introduced in https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/4491
+                    this._waylandClient = Meta.WaylandClient.new_subprocess (global.context, this._launcher, argv);
+                    this.subprocess = this._waylandClient.get_subprocess();
+                } else {
+                    // Old APIs
+                    try {
+                        // Oldest API
+                        this._waylandClient = Meta.WaylandClient.new(this._launcher);
+                    } catch (e) {
+                        // Not-so-old API
+                        this._waylandClient = Meta.WaylandClient.new(global.context,
+                                                                    this._launcher);
+                    }
+                    this.subprocess = this._waylandClient.spawnv(global.display, argv);
+                }
             } else {
                 this.subprocess = this._launcher.spawnv(argv);
             }
@@ -610,13 +617,21 @@ class LaunchSubprocess {
 
     show_in_window_list(window) {
         if (Meta.is_wayland_compositor() && this.process_running) {
-            this._waylandClient.show_in_window_list(window);
+            if (window.show_in_window_list) {
+                window.show_in_window_list();
+            } else {
+                this._waylandClient.show_in_window_list(window);
+            }
         }
     }
 
     hide_from_window_list(window) {
         if (Meta.is_wayland_compositor() && this.process_running) {
-            this._waylandClient.hide_from_window_list(window);
+            if (window.hide_from_window_list) {
+                window.hide_from_window_list();
+            } else {
+                this._waylandClient.hide_from_window_list(window);
+            }
         }
     }
 };

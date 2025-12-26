@@ -28,7 +28,6 @@
      box-sizing: border-box;
      background-image: url(ui/icons/hicolor/scalable/actions/transparent.svg);
      background-repeat: no-repeat;
-     background-position: center;
 }
 
 .dr-b {
@@ -55,7 +54,6 @@
 .down_btn,
 .right_btn {
      background-repeat: no-repeat;
-     background-position: center;
 }
 
 .close_btn.regular,
@@ -156,6 +154,16 @@
 .alt_btn.inverted,
 .alt_btn.selected.regular {
      background-image: url(ui/icons/hicolor/scalable/actions/alt-dark.svg);
+}
+
+.menu_btn.regular,
+.menu_btn.selected.inverted {
+     background-image: url(ui/icons/hicolor/scalable/actions/menu.svg);
+}
+
+.menu_btn.inverted,
+.menu_btn.selected.regular {
+     background-image: url(ui/icons/hicolor/scalable/actions/menu-dark.svg);
 }
 
 .space_btn.regular,
