@@ -434,7 +434,7 @@ class DBusManager {
          * The notification interface in GLib.Application requires a .desktop file, which
          * we can't have, so we must use directly the Notification DBus interface
          */
-        this._notifyProxy.NotifyRemote('', 0, '', header, text, [], {}, -1, () => {});
+        this._notifyProxy.NotifyRemote('Desktop Icons', 0, '', header, text, [], {}, -1, () => {});
     }
 }
 Signals.addSignalMethods(DBusManager.prototype);

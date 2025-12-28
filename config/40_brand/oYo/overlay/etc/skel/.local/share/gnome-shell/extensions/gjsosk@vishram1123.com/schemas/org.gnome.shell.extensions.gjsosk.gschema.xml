@@ -7,6 +7,9 @@
     <key name="layout-portrait" type="i">
       <default>0</default>
     </key>
+    <key name="custom-layout" type="s">
+      <default>""</default>
+    </key>
     <key name="portrait-width-percent" type="i">
       <default>100</default>
     </key>
@@ -82,8 +85,11 @@
     <key name="play-sound" type="b">
 		<default>true</default>
     </key>
+    <key name="sound-file" type="s">
+      <default>""</default>
+    </key>
     <key name="show-icons" type="b">
-		  <default>true</default>
+	    <default>true</default>
     </key>
     <child name="indicator" schema="org.gnome.shell.extensions.gjsosk.indicator"/>
 	
@@ -92,5 +98,8 @@
   <key name="opened" type="b">
 		<default>false</default>
 	</key>
+  <key name="keyboard-visible" type="b">
+    <default>false</default>
+  </key>
 	</schema>
 </schemalist>

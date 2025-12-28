@@ -56,7 +56,7 @@ export class Layout extends BaseMenuLayout {
         this.rightBox = new St.BoxLayout({...getOrientationProp(true)});
 
         // Applications Box - Contains Favorites, Categories or programs
-        this.applicationsScrollBox = this._createScrollBox({
+        this.applicationsScrollBox = this._createScrollView({
             x_expand: true,
             y_expand: true,
             x_align: Clutter.ActorAlign.FILL,
@@ -109,8 +109,8 @@ export class Layout extends BaseMenuLayout {
         mainBox.add_child(verticalSeparator);
         mainBox.add_child(horizontalFlip ? this.leftBox : this.rightBox);
 
-        const userAvatar = ArcMenuManager.settings.get_boolean('disable-user-avatar');
-        if (!userAvatar) {
+        const userAvatar = ArcMenuManager.settings.get_boolean('show-user-avatar');
+        if (userAvatar) {
             const avatarMenuItem = new MW.AvatarMenuItem(this, Constants.DisplayType.LIST);
             this.rightBox.add_child(avatarMenuItem);
             const userAvatarSeparator = new MW.ArcMenuSeparator(this, Constants.SeparatorStyle.SHORT,
@@ -119,7 +119,7 @@ export class Layout extends BaseMenuLayout {
         }
 
         this.shortcutsBox = new St.BoxLayout({...getOrientationProp(true)});
-        this.shortcutsScrollBox = this._createScrollBox({
+        this.shortcutsScrollBox = this._createScrollView({
             y_align: Clutter.ActorAlign.START,
             style_class: this._disableFadeEffect ? '' : 'small-vfade',
         });

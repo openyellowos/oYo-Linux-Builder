@@ -88,7 +88,7 @@ export class Layout extends BaseMenuLayout {
         this.topBox.add_child(this.rightTopBox);
 
         // Applications Box - Contains Favorites, Categories or programs
-        this.applicationsScrollBox = this._createScrollBox({
+        this.applicationsScrollBox = this._createScrollView({
             x_expand: true,
             y_expand: true,
             y_align: Clutter.ActorAlign.START,
@@ -120,7 +120,7 @@ export class Layout extends BaseMenuLayout {
         layout.hookup_style(this.grid);
         this.navigateBox.add_child(this.grid);
 
-        this.pinnedAppsButton = new PlasmaMenuItem(this, _('Pinned'), `${ArcMenuManager.extension.path}/${Constants.ArcMenuLogoSymbolic}`);
+        this.pinnedAppsButton = new PlasmaMenuItem(this, _('Pinned'), `${Constants.RESOURCE_PATH}/emblems/${Constants.ArcMenuLogoSymbolic}.svg`);
         this.pinnedAppsButton.connect('activate', () => this.displayPinnedApps());
         this.grid.layout_manager.attach(this.pinnedAppsButton, 0, 0, 1, 1);
         this.pinnedAppsButton.setActive(true);
@@ -484,7 +484,7 @@ class PlasmaMenuItem extends MW.BaseMenuItem {
 
     createIcon() {
         return new St.Icon({
-            gicon: Gio.icon_new_for_string(this.iconPath),
+            gicon: Gio.Icon.new_for_string(this.iconPath),
             icon_size: Constants.MEDIUM_ICON_SIZE,
         });
     }
@@ -492,10 +492,9 @@ class PlasmaMenuItem extends MW.BaseMenuItem {
     _onHover() {
         if (this.hover) {
             const description = null;
-            this._menuButton.tooltip.showTooltip(this, this.tooltipLocation, this.label,
-                description, Constants.DisplayType.LIST);
+            this._menuButton.showTooltip(this, this.tooltipLocation, this.label, description, Constants.DisplayType.LIST);
         } else {
-            this._menuButton.tooltip.hide();
+            this._menuButton.hideTooltip();
         }
         const shouldHover = ArcMenuManager.settings.get_boolean('plasma-enable-hover');
         if (shouldHover && this.hover && !this.isActive)

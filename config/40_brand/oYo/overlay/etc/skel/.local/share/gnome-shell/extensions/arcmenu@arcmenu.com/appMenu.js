@@ -130,15 +130,9 @@ export const AppContextMenu = class ArcMenuAppContextMenu extends AppMenu {
     }
 
     open(animate) {
-        if (this._menuButton.tooltipShowingID) {
-            GLib.source_remove(this._menuButton.tooltipShowingID);
-            this._menuButton.tooltipShowingID = null;
-            this._menuButton.tooltipShowing = false;
-        }
-        if (this.sourceActor.tooltip) {
-            this.sourceActor.tooltip.hide();
-            this._menuButton.tooltipShowing = false;
-        }
+        this._menuButton.clearTooltipShowingId();
+        this._menuButton.hideTooltip();
+
         this._updateDesktopShortcutItem();
 
         super.open(animate);
@@ -237,16 +231,13 @@ export const AppContextMenu = class ArcMenuAppContextMenu extends AppMenu {
     _updateDesktopShortcutItem() {
         const isDesktopActive = this.isDesktopActive();
 
-        if (!this._app || !isDesktopActive) {
-            this._createDesktopShortcutItem.visible = false;
+        if (!this._app || !this._createDesktopShortcutItem)
             return;
-        }
-        this._createDesktopShortcutItem.visible = true;
 
         const [exists] = this.getDesktopShortcut();
-
         this._createDesktopShortcutItem.label.text = exists ?  _('Delete Desktop Shortcut')
             : _('Create Desktop Shortcut');
+        this._createDesktopShortcutItem.visible = isDesktopActive;
     }
 
     // For Custom Shortcuts in Pinned Apps category. ie ArcMenu Settings

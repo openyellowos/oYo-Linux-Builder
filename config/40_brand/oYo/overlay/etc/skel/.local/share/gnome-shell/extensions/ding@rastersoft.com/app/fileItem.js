@@ -18,6 +18,7 @@
  */
 'use strict';
 const Gtk = imports.gi.Gtk;
+const Atk = imports.gi.Atk;
 const Gdk = imports.gi.Gdk;
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
@@ -49,43 +50,10 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
         this._dropCoordinates = this._readCoordinatesFromAttribute(fileInfo, 'metadata::nautilus-drop-position');
 
         this._createIconActor();
-        this._setFileName(this._getVisibleName());
 
         /* Set the metadata and update relevant UI */
         this._updateMetadataFromFileInfo(fileInfo);
-
-        let accessible = this._containerAccessibility.get_accessible();
-        switch (this._fileExtra) {
-            default:
-                if (this._isDirectory) {
-                    /** TRANSLATORS: when using a screen reader, this is the text read when a folder is
-                        selected. Example: if a folder named "things" is selected, it will say "things Folder" */
-                    accessible.set_name(_("${VisibleName} Folder").replace("${VisibleName}", this._getVisibleName()));
-                } else {
-                    /** TRANSLATORS: when using a screen reader, this is the text read when a normal file is
-                        selected. Example: if a file named "my_picture.jpg" is selected, it will say "my_picture.jpg File" */
-                    accessible.set_name(_("${VisibleName} File").replace("${VisibleName}", this._getVisibleName()));
-                }
-                break;
-            case  Enums.FileType.USER_DIRECTORY_HOME:
-                accessible.set_name(_("Home"));
-                break;
-            case Enums.FileType.USER_DIRECTORY_TRASH:
-                /** TRANSLATORS: when using a screen reader, this is the text read when the trash folder is
-                    selected. */
-                accessible.set_name(_("Trash"));
-                break;
-            case Enums.FileType.EXTERNAL_DRIVE:
-                /** TRANSLATORS: when using a screen reader, this is the text read when an external drive is
-                    selected. Example: if a USB stick named "my_portable" is selected, it will say "my_portable Drive" */
-                accessible.set_name(_("${VisibleName} Drive").replace("${VisibleName}", this._getVisibleName()));
-                break;
-            case Enums.FileType.STACK_TOP:
-                /** TRANSLATORS: when using a screen reader, this is the text read when a stack is
-                    selected. Example: if a stack named "pictures" is selected, it will say "pictures Stack" */
-                accessible.set_name(_("${VisibleName} Stack").replace("${VisibleName}", this._getVisibleName()));
-                break;
-        }
+        this._setFileName(this._getVisibleName());
 
         this._updateIcon().catch(e => {
             print(`Exception while updating an icon: ${e.message}\n${e.stack}`);
@@ -143,6 +111,90 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
         }
     }
 
+    setAccessibleName(filename) {
+        const specialCases = [
+            [
+                this._fileExtra === Enums.FileType.USER_DIRECTORY_HOME,
+                /** TRANSLATORS: when using a screen reader, this is the text read when the user's personal folder is
+                 * highlighted. */
+                _('Home'),
+                /** TRANSLATORS: when using a screen reader, this is the text read when the user's personal folder is
+                 * highlighted and selected. */
+                _('Home Selected')
+            ], [
+                this._fileExtra === Enums.FileType.USER_DIRECTORY_TRASH,
+                /** TRANSLATORS: when using a screen reader, this is the text read when the trash folder is
+                 * highlighted. */
+                _('Trash'),
+                /** TRANSLATORS: when using a screen reader, this is the text read when the trash folder is
+                 * highlighted and selected. */
+                _('Trash Selected')
+            ], [
+                this._fileExtra === Enums.FileType.EXTERNAL_DRIVE,
+                /** TRANSLATORS: when using a screen reader, this is the role used when an external drive is
+                 * highlighted. Example: if a USB stick named "my_portable" is highlighted, it will say "my_portable Drive".
+                 * It is mandatory to say the file name first and the role after. */
+                _('${VisibleName} Drive'),
+                /** TRANSLATORS: when using a screen reader, this is the role used when an external drive is
+                 * highlighted and selected. Example: if a USB stick named "my_portable" is highlighted and selected, it
+                 * will say "my_portable Drive Selected". It is mandatory to say the file name first, then the role, and
+                 * finally "Selected". */
+                _('${VisibleName} Drive Selected')
+            ], [
+                this._fileExtra === Enums.FileType.STACK_TOP,
+                /** TRANSLATORS: when using a screen reader, this is the role used when a stack is
+                 * highlighted. Example: if a stack named "pictures" is selected, it will say "pictures Stack".
+                 * It is mandatory to say the file name first and the role after. */
+                _('${VisibleName} Stack'),
+                /** TRANSLATORS: when using a screen reader, this is the role used when a stack is highlighted and
+                 * selected. Example: if a stack named "pictures" is highlighted and selected, it will say "pictures Stack Selected".
+                 * It is mandatory to say the file name first, then the role, and finally "Selected". */
+                _('${VisibleName} Stack Selected')
+            ], [
+                this._isDirectory,
+                /** TRANSLATORS: when using a screen reader, this is the role used when a folder is
+                 * highlighted. Example: if a folder named "things" is highlighted, it will say "things Folder".
+                 * It is mandatory to say the file name first and the role after. */
+                _('${VisibleName} Folder'),
+                /** TRANSLATORS: when using a screen reader, this is the role used when a folder is
+                 * highlighted and selected. Example: if a folder named "things" is highlighted and selected, it will say
+                 * "things Folder Selected". It is mandatory to say the file name first, then the role, and finally "Selected". */
+                _('${VisibleName} Folder Selected'),
+            ], [
+                this._isDesktopFile && this.trustedDesktopFile,
+                /** TRANSLATORS: when using a screen reader, this is the role used when a trusted desktop file is
+                 * highlighted. Example: if a desktop file named "My App" is highlighted and it is trusted, it will
+                 * say "My App Application". It is mandatory to say the file name first and the role after. */
+                _('${VisibleName} Application'),
+                /** TRANSLATORS: when using a screen reader, this is the role used when a trusted desktop file is
+                 * highlighted. Example: if a desktop file named "My App" is highlighted and selected and it is trusted, it will
+                 * say "My App Application Selected". It is mandatory to say the file name first and the role after. */
+                _('${VisibleName} Application Selected')
+            ], [
+                // The default value
+                true,
+                /** TRANSLATORS: when using a screen reader, this is the text read when a normal file is
+                 * highlighted. Example: if a file named "my_picture.jpg" is highlighted, it will say "my_picture.jpg File" */
+                _('${VisibleName} File'),
+                /** TRANSLATORS: when using a screen reader, this is the text read when a normal file is highlighted and
+                 * selected. Example: if a file named "my_picture.jpg" is highlighted and selected, it will say
+                 * "my_picture.jpg File Selected". It is mandatory to say the file name first and the role after. */
+                _('${VisibleName} File Selected')
+            ]
+        ];
+
+        var name = "";
+        for (let c of specialCases){
+            if (c[0]) {
+                name = this._isSelected ? c[2] : c[1];
+                break;
+            }
+        }
+        const accessible = this._containerAccessibility.get_accessible();
+        const visibleNameAndRole = name.replace('${VisibleName}', filename);
+        accessible.set_name(visibleNameAndRole);
+    }
+
     setRenamePopup(renameWindow) {
         if (this._realizeId) {
             this.container.disconnect(this._realizeId);
@@ -185,11 +237,15 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
      * Creators *
      ***********************/
 
-    _getVisibleName(useAttributes) {
+    _getVisibleName() {
         if (this._fileExtra == Enums.FileType.EXTERNAL_DRIVE) {
             return this._custom.get_name();
         } else {
-            return this._fileInfo.get_display_name();
+            if (this._isValidDesktopFile && !this._desktopManager.writableByOthers && !this._writableByOthers && this.trustedDesktopFile) {
+                return this._desktopFile.get_locale_string('Name');
+            } else {
+                return this._fileInfo.get_display_name();
+            }
         }
     }
 
@@ -199,6 +255,7 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
             text = _('Home');
         }
         this._setLabelName(text);
+        this.setAccessibleName(text);
     }
 
     _readCoordinatesFromAttribute(fileInfo, attribute) {
@@ -416,11 +473,7 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
     }
 
     _updateName() {
-        if (this._isValidDesktopFile && !this._desktopManager.writableByOthers && !this._writableByOthers && this.trustedDesktopFile) {
-            this._setFileName(this._desktopFile.get_locale_string('Name'));
-        } else {
-            this._setFileName(this._getVisibleName());
-        }
+        this._setFileName(this._getVisibleName());
     }
 
     /** *********************

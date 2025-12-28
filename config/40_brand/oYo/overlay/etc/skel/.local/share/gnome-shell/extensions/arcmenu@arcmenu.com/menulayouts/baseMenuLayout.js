@@ -109,7 +109,7 @@ export class BaseMenuLayout extends St.BoxLayout {
 
         this.hasPinnedApps = false;
         this.activeCategoryType = -1;
-        this._disableFadeEffect = ArcMenuManager.settings.get_boolean('disable-scrollview-fade-effect');
+        this._disableFadeEffect = !ArcMenuManager.settings.get_boolean('scrollview-fade-effect');
         this.iconTheme = new St.IconTheme();
         this.appSys = Shell.AppSystem.get_default();
         this._tree = new GMenu.Tree({menu_basename: 'applications.menu'});
@@ -343,7 +343,7 @@ export class BaseMenuLayout extends St.BoxLayout {
     }
 
     _loadCategory(categoryMenuItem, dir) {
-        const showNewAppsIndicator = !ArcMenuManager.settings.get_boolean('disable-recently-installed-apps');
+        const showNewApps = ArcMenuManager.settings.get_boolean('show-recently-installed-apps');
         const iter = dir.iter();
         let nextType;
         while ((nextType = iter.next()) !== GMenu.TreeItemType.INVALID) {
@@ -352,7 +352,7 @@ export class BaseMenuLayout extends St.BoxLayout {
                 let id;
                 try {
                     id = entry.get_desktop_file_id();
-                } catch (e) {
+                } catch {
                     continue;
                 }
 
@@ -378,7 +378,7 @@ export class BaseMenuLayout extends St.BoxLayout {
                 }
                 categoryMenuItem.appList.push(app);
 
-                if (showNewAppsIndicator && item.isRecentlyInstalled)
+                if (showNewApps && item.isRecentlyInstalled)
                     categoryMenuItem.setNewAppIndicator(true);
             } else if (nextType === GMenu.TreeItemType.DIRECTORY) {
                 const subdir = iter.get_directory();
@@ -416,8 +416,8 @@ export class BaseMenuLayout extends St.BoxLayout {
     }
 
     setNewAppIndicator() {
-        const disabled = ArcMenuManager.settings.get_boolean('disable-recently-installed-apps');
-        if (!disabled && this.categoryDirectories) {
+        const showNewApps = ArcMenuManager.settings.get_boolean('show-recently-installed-apps');
+        if (showNewApps && this.categoryDirectories) {
             for (const categoryMenuItem of this.categoryDirectories.values()) {
                 categoryMenuItem.setNewAppIndicator(false);
                 for (let i = 0; i < categoryMenuItem.appList.length; i++) {
@@ -884,6 +884,7 @@ export class BaseMenuLayout extends St.BoxLayout {
         const actors = box.get_children();
         for (let i = 0; i < actors.length; i++) {
             const actor = actors[i];
+            actor.remove_all_transitions();
             box.remove_child(actor);
         }
     }
@@ -1246,41 +1247,8 @@ export class BaseMenuLayout extends St.BoxLayout {
         });
     }
 
-    _createScrollBox(params) {
-        const scrollBox = new St.ScrollView({
-            ...params,
-            clip_to_allocation: true,
-            hscrollbar_policy: St.PolicyType.NEVER,
-            vscrollbar_policy: St.PolicyType.AUTOMATIC,
-            overlay_scrollbars: true,
-        });
-
-        // With overlay_scrollbars = true, the scrollbar appears behind the menu items
-        // Maybe a bug in GNOME? Fix it with this.
-        scrollBox.get_children().forEach(child => {
-            if (child instanceof St.ScrollBar)
-                child.z_position = 1;
-        });
-
-        const panAction = new Clutter.PanAction({interpolate: true});
-        panAction.connect('pan', action => this._onPan(action, scrollBox));
-        this.add_action(panAction);
-
-        return scrollBox;
-    }
-
-    _onPan(action, scrollBox) {
-        if (this._menuButton.tooltipShowingID) {
-            GLib.source_remove(this._menuButton.tooltipShowingID);
-            this._menuButton.tooltipShowingID = null;
-        }
-        if (this._menuButton.tooltip.visible)
-            this._menuButton.tooltip.hide(true);
-
-        const [dist_, dx_, dy] = action.get_motion_delta(0);
-        const {vadjustment} = Utils.getScrollViewAdjustments(scrollBox);
-        vadjustment.value -=  dy;
-        return false;
+    _createScrollView(params) {
+        return Utils.createPanActionScrollView(this._menuButton, params);
     }
 
     _createLabelWithSeparator(headerLabel) {

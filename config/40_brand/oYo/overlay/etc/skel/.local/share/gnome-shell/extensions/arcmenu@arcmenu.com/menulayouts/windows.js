@@ -68,7 +68,7 @@ export class Layout extends BaseMenuLayout {
         });
         this.add_child(this.subMainBox);
 
-        this.pinnedAppsScrollBox = this._createScrollBox({
+        this.pinnedAppsScrollBox = this._createScrollView({
             x_expand: true,
             y_expand: true,
             y_align: Clutter.ActorAlign.START,
@@ -85,7 +85,7 @@ export class Layout extends BaseMenuLayout {
             Constants.SeparatorAlignment.VERTICAL);
 
         this.applicationsBox = new St.BoxLayout({...getOrientationProp(true)});
-        this.applicationsScrollBox = this._createScrollBox({
+        this.applicationsScrollBox = this._createScrollView({
             x_expand: false,
             y_expand: true,
             x_align: Clutter.ActorAlign.START,
@@ -260,7 +260,7 @@ export class Layout extends BaseMenuLayout {
             Constants.SeparatorAlignment.HORIZONTAL);
         headerBox.add_child(separator);
 
-        this.computerScrollBox = this._createScrollBox({
+        this.computerScrollBox = this._createScrollView({
             x_expand: true,
             y_expand: true,
             y_align: Clutter.ActorAlign.START,
@@ -324,7 +324,7 @@ export class Layout extends BaseMenuLayout {
         super.setDefaultMenuView();
 
         this.displayAllApps();
-        if (!ArcMenuManager.settings.get_boolean('windows-disable-pinned-apps'))
+        if (ArcMenuManager.settings.get_boolean('windows-show-pinned-apps'))
             this.displayPinnedApps();
 
         const {vadjustment} = getScrollViewAdjustments(this.pinnedAppsScrollBox);
@@ -365,7 +365,7 @@ export class Layout extends BaseMenuLayout {
     displayAllApps() {
         this._clearActorsFromBox();
 
-        if (!ArcMenuManager.settings.get_boolean('windows-disable-frequent-apps'))
+        if (ArcMenuManager.settings.get_boolean('windows-show-frequent-apps'))
             this.displayFrequentApps();
 
         const appList = [];
