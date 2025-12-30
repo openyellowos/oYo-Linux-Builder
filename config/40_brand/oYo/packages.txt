@@ -19,9 +19,6 @@ file-roller
 # 電卓
 gnome-calculator
 
-# 文字・記号パレット
-gnome-characters
-
 # ディスク管理ツール
 gnome-disk-utility
 
@@ -34,22 +31,16 @@ gnome-multi-writer
 # オンラインアカウント統合
 gnome-online-accounts
 
-#Remote desktop daemon for GNOME using PipeWire
+# リモートデスクトップ対応
 gnome-remote-desktop
-
-# Fcitx5 キーパネル拡張
-gnome-shell-extension-kimpanel
 
 # GNOME オフィシャル拡張
 gnome-shell-extensions
 
-# take pictures and videos from your webcam
-gnome-snapshot
-
 # ソフトウェアセンター
 gnome-software
 
-#Firmware updater support for GNOME Software
+# ファームウェア対応プラグイン
 gnome-software-plugin-fwupd
 
 # Flatpak 連携プラグイン
@@ -64,16 +55,16 @@ gnome-system-monitor
 # GNOME 端末
 gnome-terminal
 
-# かんたんファイル共有
+# ファイル共有
 gnome-user-share
 
-#GNOME パーティションエディタ
+# GNOME パーティションエディタ
 gparted
 
-#install deb files
+# .debファイルインストール GUI
 gdebi
 
-#管理操作を行うための Nautilus の拡張機能
+# 管理操作を行うための Nautilus の拡張機能
 nautilus-admin
 
 # L2TP VPN プラグイン GUI
@@ -91,16 +82,16 @@ tracker
 # GTK ダイアログユーティリティ
 zenity
 
-#GNOME Shell の “Quicklists” 機能で必要
+# GNOME Shell の “Quicklists” 機能で必要
 gir1.2-dbusmenu-glib-0.4
 gir1.2-dbusmenu-gtk3-0.4
 libdbusmenu-glib4
 libdbusmenu-gtk3-4
 
-# gnome拡張機能 DINGで必要
+# Gnome 拡張機能 DINGで必要
 gir1.2-gnomedesktop-3.0
 
-#イベントサウンド
+# イベントサウンド
 gnome-session-canberra
 libcanberra-pulse
 
@@ -172,8 +163,10 @@ libkpmcore12
 # 電力管理用ユーティリティおよびスクリプト
 pm-utils
 
+# 各種センサ対応
+iio-sensor-proxy
+
 # ---- 開発用 ----
 dconf-editor
-
 galternatives
 
