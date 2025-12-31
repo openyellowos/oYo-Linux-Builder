@@ -1,7 +1,7 @@
 # GNOME Shell 拡張ブラウザ連携
 chrome-gnome-shell
 
-# GNOME 拡張機能
+# GNOME 拡張機能マネージャ
 gnome-shell-extension-manager
 
 # GNOME Tweaks
@@ -25,8 +25,8 @@ gnome-disk-utility
 # システムログビューア
 gnome-logs
 
-# 複数 USB 書き込みツール
-gnome-multi-writer
+# USB メモリ書き込み・フォーマッタツール
+mintstick
 
 # オンラインアカウント統合
 gnome-online-accounts
@@ -34,7 +34,7 @@ gnome-online-accounts
 # リモートデスクトップ対応
 gnome-remote-desktop
 
-# GNOME オフィシャル拡張
+# GNOME 拡張機能集
 gnome-shell-extensions
 
 # ソフトウェアセンター
