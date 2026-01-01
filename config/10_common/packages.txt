@@ -34,10 +34,8 @@ fonts-symbola
 gnupg
 grub-common
 grub-efi-amd64-bin
-grub-efi-amd64-signed
 grub-pc-bin
 grub2-common
-shim-signed
 efibootmgr
 ifupdown
 init

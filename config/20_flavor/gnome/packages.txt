@@ -20,10 +20,10 @@ nautilus
 # Wayland コンポジタ
 mutter
 
-#アイコン リサイズ
+# アイコン リサイズ
 librsvg2-bin
 
-#システム
+# システム
 gsettings-desktop-schemas
 
 # GNOME 標準アイコン
@@ -44,14 +44,16 @@ gnome-keyring
 # .desktop メニュー
 gnome-menus
 
+# Gnome セッション
 gnome-session
 
 # ログイン効果音
 gnome-session-canberra
 
+# Gnome Shell
 gnome-shell
 
-# 拡張機能
+# 拡張機能集
 gnome-shell-extensions
 
 # gsettings 共通スキーマ
@@ -59,7 +61,6 @@ gsettings-desktop-schemas
 
 # ファイルシステム仮想化 (smb/mtp 等)
 gvfs-backends
-
 gvfs-fuse
 
 # 自動ロック解除
@@ -71,7 +72,7 @@ xwayland
 # 初回ログイン時のユーザー DIR 作成
 xdg-user-dirs-gtk
 
-#ターミナルのtabキーで補完
+# ターミナルのtabキーで補完
 bash-completion
 
 #指紋認証

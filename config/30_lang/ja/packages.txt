@@ -1,11 +1,17 @@
-# ja language support
+# 言語サポート
 locales
+
+# インプットメソッド関連
 fcitx5
 fcitx5-mozc
 fcitx5-config-qt
 fcitx5-frontend-all
-firefox-esr-l10n-ja
-fonts-noto-cjk
-gnome-shell-extension-kimpanel
 mozc-utils-gui
+gnome-shell-extension-kimpanel
+
+# Firefox 日本語化
+firefox-esr-l10n-ja
+
+# 日本語対応フォント
+fonts-noto-cjk
 

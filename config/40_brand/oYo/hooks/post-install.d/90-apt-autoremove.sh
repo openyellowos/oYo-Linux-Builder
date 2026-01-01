@@ -7,5 +7,5 @@
 #
 
 echo "apt autoremove"
-apt autoremove -y
+apt autoremove -y --purge
 
