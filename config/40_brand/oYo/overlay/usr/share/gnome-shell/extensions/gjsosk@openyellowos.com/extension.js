@@ -77,7 +77,10 @@ class KeyboardMenuToggle extends QuickSettings.QuickMenuToggle {
 let keycodes;
 let layouts;
 let currentMonitorId = 0;
-let extract_dir = GLib.get_user_cache_dir() + "/gjs-osk";
+// 日本語キーボードレイアウトだと、スクリーンキーボードのラベルが表示されない箇所がある不具合を修正 2026/01/19 Start
+let extract_dir = GLib.get_user_cache_dir() + "/gjs-osk-us";
+//let extract_dir = GLib.get_user_cache_dir() + "/gjs-osk";
+// 日本語キーボードレイアウトだと、スクリーンキーボードのラベルが表示されない箇所がある不具合を修正 2026/01/19 End
 // [insert handwriting 1]
 
 export default class GjsOskExtension extends Extension {
@@ -274,7 +277,10 @@ export default class GjsOskExtension extends Extension {
                 const extractKeycodes = async () => {
                     const baseDir = Gio.File.new_for_path(extract_dir);
                     const keycodesDir = Gio.File.new_for_path(extract_dir + "/keycodes");
-                    const layoutId = KeyboardManager.getKeyboardManager().currentLayout?.id || "us";
+// 日本語キーボードレイアウトだと、スクリーンキーボードのラベルが表示されない箇所がある不具合を修正 2026/01/19 Start
+                    const layoutId = "us";
+//                   const layoutId = KeyboardManager.getKeyboardManager().currentLayout?.id || "us";
+// 日本語キーボードレイアウトだと、スクリーンキーボードのラベルが表示されない箇所がある不具合を修正 2026/01/19 End
                     const targetFile = Gio.File.new_for_path(`${extract_dir}/keycodes/${layoutId}.json`);
 
                     if (await fileExists(targetFile)) {
@@ -317,7 +323,10 @@ export default class GjsOskExtension extends Extension {
                 };
 
                 const initializeKeyboard = async () => {
-                    const layoutId = KeyboardManager.getKeyboardManager().currentLayout?.id || "us";
+// 日本語キーボードレイアウトだと、スクリーンキーボードのラベルが表示されない箇所がある不具合を修正 2026/01/19 Start
+                    const layoutId = "us";
+//                    const layoutId = KeyboardManager.getKeyboardManager().currentLayout?.id || "us";
+// 日本語キーボードレイアウトだと、スクリーンキーボードのラベルが表示されない箇所がある不具合を修正 2026/01/19 End
                     const keycodesPath = GLib.build_filenamev([
                         extract_dir,
                         "keycodes",
