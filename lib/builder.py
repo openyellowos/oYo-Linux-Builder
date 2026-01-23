@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import textwrap
 import shutil
 import subprocess
 from pathlib import Path
@@ -549,8 +550,51 @@ def _prepare_chroot(codename: str):
         # ── その他の引数 ──
         codename,
         str(CHROOT),
-        "deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware"
+        f"deb http://deb.debian.org/debian {codename} main contrib non-free non-free-firmware"
     ])
+    
+    # ─────────────────────────────────────────────────────────────
+    # ISO起動後の /etc/apt/sources.list は trixie-updates / trixie-security を含むため
+    # ビルド時点でも同じ sources に揃えて full-upgrade しておく。
+    # これをやらないと「ISO起動後に apt update すると更新が見つかる」状態になりやすい。
+    # ─────────────────────────────────────────────────────────────
+    sources_list = textwrap.dedent("""\
+deb http://deb.debian.org/debian {codename} main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian {codename}-updates main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian-security {codename}-security main contrib non-free non-free-firmware
+""").format(codename=codename)
+   
+    _run([
+        "sudo", "bash", "-c",
+        f"cat > {CHROOT}/etc/apt/sources.list <<'EOF'\n{sources_list}EOF\n"
+    ])
+
+    # chroot 内で apt を回すため、一時的にDNSを使えるようにする
+    _bind_resolv_conf()
+
+    # chroot 内で full-upgrade が /proc を前提にするケースがあるため、
+    # ここだけ最小で /proc を bind-mount する
+    proc_target = CHROOT / "proc"
+    proc_target.mkdir(parents=True, exist_ok=True)
+    _run(["sudo", "mount", "--bind", "/proc", str(proc_target)])
+
+    print("🔄 Syncing packages to latest (update + full-upgrade) ...")
+    _run([
+        "sudo", "chroot", str(CHROOT),
+        "env", "DEBIAN_FRONTEND=noninteractive",
+        "apt-get", "update"
+    ])
+    _run([
+        "sudo", "chroot", str(CHROOT),
+        "env", "DEBIAN_FRONTEND=noninteractive",
+        "apt-get", "-y", "full-upgrade"
+    ])
+
+    # この時点で外したいので解除（終了時の自動解除と二重になるのが嫌なら _register_unmount を外す）
+    _run(["sudo", "umount", "-l", str(proc_target)])
+
+    # build_iso() 側でも _bind_resolv_conf() を呼ぶため、ここで解除しておく
+    _run(["sudo", "umount", "-l", str(CHROOT / "etc/resolv.conf")])
 
     # ISOファイルサイズを減らすため、キャッシュを削除
     _apt_clean()
@@ -873,8 +917,17 @@ def build_iso():
     # squashfs イメージを作成（仮想FSを完全除外）
     # —— squashfs の前に chroot の仮想FSをアンマウント ——
     print("Unmounting /proc, /sys, /dev from chroot before squashfs…")
-    for fs in ("dev", "sys", "proc", "var/cache/apt/archives"):
+    for fs in ("dev", "sys", "proc", "etc/resolv.conf", "var/cache/apt/archives"):
         _run(["sudo", "umount", "-l", str(CHROOT / fs)])
+        
+    # Live 環境用に resolv.conf を書き戻す（DNSが空になるのを防ぐ）
+    _run([
+        "sudo", "bash", "-c",
+        f"cat > {CHROOT}/etc/resolv.conf <<'EOF'\n"
+        "nameserver 1.1.1.1\n"
+        "nameserver 8.8.8.8\n"
+        "EOF\n"
+    ])
 
     # squashfs イメージを作成
     squashfs = live_dir / "filesystem.squashfs"
@@ -1039,4 +1092,3 @@ def _bind_resolv_conf():
     _run(["sudo", "touch", str(target)])
 
     _run(["sudo", "mount", "--bind", str(host_resolv), str(target)])
-    _register_unmount(target)  # 終了時に自動アンマウント
