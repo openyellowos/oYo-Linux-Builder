@@ -2,6 +2,7 @@
 import os
 import sys
 import textwrap
+import tempfile
 import shutil
 import subprocess
 from pathlib import Path
@@ -73,6 +74,17 @@ def _cleanup_mounts():
     プログラム終了時に必ず呼ばれ、マウントしっぱなしのリソースを残さないようにする。
     """
     for m in reversed(_MOUNTS):
+        try:
+            # すでに外れているものに umount を打たない
+            if subprocess.run(
+                ["mountpoint", "-q", str(m)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            ).returncode != 0:
+                continue
+        except Exception:
+            # mountpoint 自体が失敗しても、後続で umount を試す
+            pass
+
         subprocess.run(
             ["sudo", "umount", "-l", str(m)],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -220,9 +232,25 @@ def _render_brand_template(template_name: str, dest: Path, context: dict):
     tpl = env.get_template(template_name)
     rendered = tpl.render(**context)
 
-    target = CHROOT / dest
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(rendered)
+    # dest が相対なら CHROOT 配下、絶対ならそのまま（ISO など）を target にする
+    target = (CHROOT / dest) if not Path(dest).is_absolute() else Path(dest)
+
+    # root 所有の可能性があるので、必ず sudo 経由で書き込む
+    _run(["sudo", "mkdir", "-p", str(target.parent)])
+
+    # 一旦テンポラリに書き出してから sudo install で配置
+    tmp_dir = WORK / "tmp_render"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = tmp_dir / f"{target.name}.tmp"
+    tmp_path.write_text(rendered, encoding="utf-8")
+
+    # install はパーミッションも含めて安定（0644）
+    _run(["sudo", "install", "-m", "0644", str(tmp_path), str(target)])
+    try:
+        tmp_path.unlink(missing_ok=True)
+    except Exception:
+        pass
+
     print(f"Rendered {template_name} → {target}")
 
 
@@ -571,14 +599,22 @@ deb http://deb.debian.org/debian-security {codename}-security main contrib non-f
 
     # chroot 内で apt を回すため、一時的にDNSを使えるようにする
     _bind_resolv_conf()
+    
+    # --- /proc /sys /dev と /dev/pts を用意 ---
+    for fs in ("proc", "sys", "dev"):
+        target = CHROOT / fs
+        target.mkdir(parents=True, exist_ok=True)
+        _run(["sudo", "mount", "--bind", f"/{fs}", str(target)])
+        # ※ atexit の自動アンマウントを効かせたいなら登録しておく
+        _register_unmount(target)
 
-    # chroot 内で full-upgrade が /proc を前提にするケースがあるため、
-    # ここだけ最小で /proc を bind-mount する
-    proc_target = CHROOT / "proc"
-    proc_target.mkdir(parents=True, exist_ok=True)
-    _run(["sudo", "mount", "--bind", "/proc", str(proc_target)])
+    pts = CHROOT / "dev" / "pts"
+    pts.mkdir(parents=True, exist_ok=True)
+    _run(["sudo", "mount", "-t", "devpts", "devpts", str(pts)])
+    _register_unmount(pts)
 
     print("🔄 Syncing packages to latest (update + full-upgrade) ...")
+
     _run([
         "sudo", "chroot", str(CHROOT),
         "env", "DEBIAN_FRONTEND=noninteractive",
@@ -590,8 +626,11 @@ deb http://deb.debian.org/debian-security {codename}-security main contrib non-f
         "apt-get", "-y", "full-upgrade"
     ])
 
-    # この時点で外したいので解除（終了時の自動解除と二重になるのが嫌なら _register_unmount を外す）
-    _run(["sudo", "umount", "-l", str(proc_target)])
+    # --- bind したものを外す ---
+    _run(["sudo", "umount", "-l", str(CHROOT / "dev" / "pts")])
+    _run(["sudo", "umount", "-l", str(CHROOT / "dev")])
+    _run(["sudo", "umount", "-l", str(CHROOT / "sys")])
+    _run(["sudo", "umount", "-l", str(CHROOT / "proc")])
 
     # build_iso() 側でも _bind_resolv_conf() を呼ぶため、ここで解除しておく
     _run(["sudo", "umount", "-l", str(CHROOT / "etc/resolv.conf")])
@@ -740,6 +779,12 @@ def build_iso():
         _run(["sudo", "mount", "--bind", f"/{fs}", str(target)])
         _register_unmount(target)
 
+    # --- /dev/pts (devpts) を明示マウントしないと、pty が使えず posix_openpt(ENODEV) になり得る ---
+    pts = CHROOT / "dev" / "pts"
+    pts.mkdir(parents=True, exist_ok=True)
+    _run(["sudo", "mount", "-t", "devpts", "devpts", str(pts)])
+    _register_unmount(pts)
+
     # chroot内でネット接続するため、resolv.conf をバインド
     print("Binding host resolv.conf into chroot…")
     _bind_resolv_conf()
@@ -878,22 +923,29 @@ def build_iso():
         # --- grub.cfg テンプレート適用 ---
         grub_tpl = brand_dir / "templates" / "grub.cfg.j2"
         if grub_tpl.exists():
+
             if yml.exists():
-                context = yaml.safe_load(yml.read_text())  # 必要なら再読込
+                context = yaml.safe_load(yml.read_text())
             _render_brand_template(
                 "grub.cfg.j2",
                 ISO / "boot" / "grub" / "grub.cfg",
                 context
             )
 
-    print(f"Applied branded grub.cfg from {grub_tpl} to BIOS and UEFI")
-    uefi_grub_cfg_path = ISO / "EFI" / "BOOT" / "grub.cfg"
-    _run([
-        "sudo", "cp",
-        str(ISO / "boot" / "grub" / "grub.cfg"),
-        str(uefi_grub_cfg_path)
-    ])
-    print(f"Copied grub.cfg to UEFI path: {uefi_grub_cfg_path}")
+            bios_grub_cfg_path = ISO / "boot" / "grub" / "grub.cfg"
+            uefi_grub_cfg_path = ISO / "EFI" / "BOOT" / "grub.cfg"
+            
+            _run([
+                "sudo", "cp",
+                str(bios_grub_cfg_path),
+                str(uefi_grub_cfg_path)
+            ])
+
+            print(
+                "Applied branded grub.cfg "
+                f"(template={grub_tpl}) "
+                f"to BIOS={bios_grub_cfg_path} and UEFI={uefi_grub_cfg_path}"
+            )
 
     # ——— ISO ルートに live カーネル/初期RAMをコピー ———
     live_dir = ISO / "live"
@@ -917,7 +969,7 @@ def build_iso():
     # squashfs イメージを作成（仮想FSを完全除外）
     # —— squashfs の前に chroot の仮想FSをアンマウント ——
     print("Unmounting /proc, /sys, /dev from chroot before squashfs…")
-    for fs in ("dev", "sys", "proc", "etc/resolv.conf", "var/cache/apt/archives"):
+    for fs in ("dev/pts", "dev", "sys", "proc", "etc/resolv.conf", "var/cache/apt/archives"):
         _run(["sudo", "umount", "-l", str(CHROOT / fs)])
         
     # Live 環境用に resolv.conf を書き戻す（DNSが空になるのを防ぐ）
@@ -1087,8 +1139,22 @@ def _bind_resolv_conf():
     # 1) 親ディレクトリを必ず作成
     _run(["sudo", "mkdir", "-p", str(target.parent)])
 
-    # 2) 既存の壊れた symlink /ファイルを削除して空ファイルを作る
+    # 2) 既にマウントされているなら何もしない（多重bind防止）
+    #    ※ mountpoint が使えるので REQUIRED_COMMANDS にも入っています
+    try:
+        if subprocess.run(["mountpoint", "-q", str(target)], check=False).returncode == 0:
+            return
+    except Exception:
+        # mountpoint が何らかの理由で失敗しても、後続で bind を試みる
+        pass
+
+    # 3) 既存の壊れた symlink /ファイルを削除して空ファイルを作る
     _run(["sudo", "rm", "-f", str(target)])
     _run(["sudo", "touch", str(target)])
 
+    # 4) bind-mount
     _run(["sudo", "mount", "--bind", str(host_resolv), str(target)])
+
+    # 5) 例外終了でも確実に後始末できるよう登録
+    _register_unmount(target)
+
