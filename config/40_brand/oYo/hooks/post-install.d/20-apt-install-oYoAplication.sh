@@ -22,5 +22,5 @@ apt update
 # 4) アプリケーションのインストール
 apt install oyo-ui-changer
 apt install oyo-sys-tools
-
+apt install oyo-gjs-osk
 

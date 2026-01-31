@@ -35,6 +35,32 @@ FINAL_LAYOUT="${LAYOUTS[-1]:-$XKBLAYOUT}"
 
 echo "[fix-keyboard] '$XKBLAYOUT' → '$FINAL_LAYOUT' (model: $XKBMODEL)"
 
+#----------------------------------------------------------------------------------------------------------------
+# gjsosk のレイアウト（layout-landscape / layout-portrait）を
+# Calamaresで選択されたキーボード配列に合わせて切り替える
+#
+# jp のとき: 11(oYo 日本語レイアウト)
+# それ以外: 10(oYo 英字レイアウト)
+#----------------------------------------------------------------------------------------------------------------
+
+GJSOSK_DCONF=/etc/dconf/db/local.d/10-gjsosk
+
+if [ "$FINAL_LAYOUT" = "jp" ]; then
+    GJSOSK_LAYOUT_VAL=11
+else
+    GJSOSK_LAYOUT_VAL=10
+fi
+
+echo "[gjsosk] FINAL_LAYOUT='$FINAL_LAYOUT' -> layout-landscape/portrait=$GJSOSK_LAYOUT_VAL"
+
+mkdir -p "$(dirname "$GJSOSK_DCONF")"
+cat > "$GJSOSK_DCONF" <<EOF
+[org/gnome/shell/extensions/gjsosk]
+layout-landscape=$GJSOSK_LAYOUT_VAL
+layout-portrait=$GJSOSK_LAYOUT_VAL
+EOF
+
+
 # 3) /etc/default/keyboard を更新
 sed -E -i "s/^XKBLAYOUT=.*/XKBLAYOUT=\"${FINAL_LAYOUT}\"/" "$KEYBD" \
   || echo "XKBLAYOUT=\"${FINAL_LAYOUT}\"" >> "$KEYBD"
