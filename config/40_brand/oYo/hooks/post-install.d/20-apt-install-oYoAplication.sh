@@ -23,4 +23,4 @@ apt update
 apt install oyo-ui-changer
 apt install oyo-sys-tools
 apt install oyo-gjs-osk
-
+apt install oyo-calamares

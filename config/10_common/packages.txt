@@ -118,7 +118,6 @@ zstd
 #################################
 #  Calamares Installer (+Qt 6)  #
 #################################
-calamares
 dosfstools
 geoclue-2.0
 python3-pyqt6.qtsvg

@@ -26,7 +26,7 @@ systemctl enable firstboot.service
 #-----------------------------
 #calamaresをアンインストール
 #-----------------------------
-sudo apt remove -y calamares
+sudo apt remove -y oyo-calamares
 
 #gparted をアンインストール
 sudo apt remove -y gparted
