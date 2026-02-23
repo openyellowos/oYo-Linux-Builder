@@ -20,7 +20,7 @@ EOF
 apt update
 
 # 4) アプリケーションのインストール
-apt install oyo-ui-changer
-apt install oyo-sys-tools
-apt install oyo-gjs-osk
-apt install oyo-calamares
+apt install -y oyo-ui-changer
+apt install -y oyo-sys-tools
+apt install -y oyo-gjs-osk
+apt install -y oyo-calamares
