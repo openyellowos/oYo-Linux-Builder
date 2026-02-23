@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import stat
 import math
 import textwrap
 import tempfile
@@ -55,6 +56,29 @@ REQUIRED_COMMANDS = [
     "chpasswd",
     "mountpoint",
 ]
+
+# ─────────────────────────────────────────────────────────────
+# overlay パーミッション検査設定
+#  - “変な権限(例: 777)” が overlay に混入していたら
+#    ISOに取り込む前にビルド失敗させる。
+# ─────────────────────────────────────────────────────────────
+#
+# 「group または other に write が立っている」ものを基本 NG とする
+#   - 0777, 0775, 0770, 0666, 0664 などを捕まえる
+#
+# ただし /tmp や /var/tmp のように sticky bit が必要な場所を
+# overlay に将来入れる可能性があるので、例外パスを用意しておく。
+#
+OVERLAY_PERM_FORBID_MASK = 0o022  # group/other write
+
+# 例外として許可する相対パス（overlay ルート基準）
+#  - ここに入れたパスそのもの＋配下（allowed/ 以下）を許可する
+#  - sticky bit 付き 1777 のディレクトリなどを将来入れる場合に使う
+OVERLAY_PERM_ALLOW_EXACT = {
+    # "tmp",          # もし overlay/tmp を使うならここを有効化
+    # "var/tmp",      # もし overlay/var/tmp を使うならここを有効化
+}
+
 
 # 今回ビルドごとにタイムスタンプ付きログファイルを作成
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -479,6 +503,139 @@ def _run(cmd, **kwargs):
         logger.error(f"コマンド失敗: {' '.join(cmd)}\nリターンコード: {proc.returncode}")
         raise subprocess.CalledProcessError(proc.returncode, cmd)
 
+def _fmt_mode(mode: int) -> str:
+    """
+    例: 0o777 -> '0777'
+    """
+    return format(mode & 0o7777, "04o")
+
+def _is_allowed_overlay_path(rel_posix: str) -> bool:
+    """
+    overlay ルートからの相対パスが、例外許可対象か判定する。
+    """
+    rel_posix = rel_posix.strip("/")
+
+    for allowed in OVERLAY_PERM_ALLOW_EXACT:
+        allowed = allowed.strip("/")
+
+        # 完全一致
+        if rel_posix == allowed:
+            return True
+
+        # allowed/ 以下も許可
+        if rel_posix.startswith(allowed + "/"):
+            return True
+
+    return False
+
+def _scan_overlay_bad_perms(overlay: Path) -> list[dict]:
+    """
+    overlay 配下を走査し、危険なパーミッション（group/other writable）を検出する。
+    戻り値: [{"path": "...", "type": "dir|file|symlink|other", "mode":"0777"}...]
+    """
+    bad: list[dict] = []
+    overlay = overlay.resolve()
+
+    # walk 自体は Python で行い、symlink は辿らない（lstatで見る）
+    for p in overlay.rglob("*"):
+        try:
+            st = p.lstat()
+        except FileNotFoundError:
+            # 走査中に消えた等はスキップ
+            continue
+
+        rel = p.relative_to(overlay).as_posix()
+        if _is_allowed_overlay_path(rel):
+            continue
+
+        mode = st.st_mode
+        perm = stat.S_IMODE(mode)
+        
+        # symlink の mode(多くの場合 0777) は意味がないので検査対象外にする
+        if stat.S_ISLNK(mode):
+            continue
+
+        # group/other write が立っていたら NG
+        if (perm & OVERLAY_PERM_FORBID_MASK) != 0:
+            if stat.S_ISDIR(mode):
+                t = "dir"
+            elif stat.S_ISREG(mode):
+                t = "file"
+            else:
+                t = "other"
+            bad.append({
+                "path": str(p),
+                "rel": rel,
+                "type": t,
+                "mode": _fmt_mode(perm),
+            })
+
+    # overlay ルートディレクトリ自体もチェック
+    try:
+        st0 = overlay.lstat()
+        perm0 = stat.S_IMODE(st0.st_mode)
+        if (perm0 & OVERLAY_PERM_FORBID_MASK) != 0:
+            bad.append({
+                "path": str(overlay),
+                "rel": ".",
+                "type": "dir",
+                "mode": _fmt_mode(perm0),
+            })
+    except Exception:
+        pass
+
+    return bad
+
+def _raise_overlay_perm_error(overlay: Path, bad: list[dict]):
+    """
+    overlay パーミッション検査エラーを、原因が分かる形で例外化する。
+    """
+    # 表示が長くなりすぎないよう上限を設ける
+    # どの環境でも同じ順序で見えるように安定ソート
+    bad = sorted(bad, key=lambda e: (e.get("rel",""), e.get("type",""), e.get("mode","")))
+
+    max_show = 40
+    shown = bad[:max_show]
+    lines = []
+    for e in shown:
+        lines.append(f"  - {e['type']:7s} {e['mode']}  {e['rel']}  ({e['path']})")
+    more = ""
+    if len(bad) > max_show:
+        more = f"\n  ... and {len(bad) - max_show} more"
+
+    msg = (
+        "\n"
+        "❌ ERROR: overlay に危険なパーミッション（group/other writable）が含まれています。\n"
+        "この状態で rsync -a すると、そのまま chroot/ISO に取り込まれます。\n\n"
+        f"overlay: {overlay}\n"
+        f"検出件数: {len(bad)}\n\n"
+        "検出した項目:\n"
+        + "\n".join(lines)
+        + more
+        + "\n\n"
+        "対処:\n"
+        "  1) overlay 側の権限を修正してください（例）:\n"
+        "       # ディレクトリのみ修正:\n"
+        "       find <overlay> -type d -perm -0022 -print -exec chmod go-w {} +\n"
+        "\n"
+        "       # ファイルのみ修正:\n"
+        "       find <overlay> -type f -perm -0022 -print -exec chmod go-w {} +\n"
+        "\n"
+        "       # あるいは単純に:\n"
+        "       chmod -R go-w <overlay>  # ※ symlink がある場合は注意\n"
+        "     ※ /tmp や /var/tmp のように 1777 が必要な場所を overlay に含めたい場合は、\n"
+        "        builder.py の OVERLAY_PERM_ALLOW_EXACT に例外パスを追加してください。\n"
+        "  2) 再発防止: overlay 作成時の umask を確認してください（例: umask 022）。\n"
+    )
+    raise RuntimeError(msg)
+
+def _verify_overlay_permissions_or_fail(overlay: Path):
+    """
+    overlay の危険パーミッションを事前検査し、問題があればビルドを失敗させる。
+    """
+    bad = _scan_overlay_bad_perms(overlay)
+    if bad:
+        _raise_overlay_perm_error(overlay, bad)
 
 def _get_codename_from_os_release() -> str:
     """common→flavor の順で os-release を探し、VERSION_CODENAME を返す"""
@@ -723,12 +880,14 @@ def _copy_overlay():
     for cfg in get_configs():
         overlay = cfg / "overlay"
         if overlay.exists():
+            _verify_overlay_permissions_or_fail(overlay)
             print(f"Applying overlay from {overlay} …")
             # rsync -a なら既存のファイル／シンボリックリンクを上書き削除してくれる
             _run([
                 "sudo", "rsync",
                 "-a",                      # アーカイブ
                 "--chown=root:root",       # ★ 追加：コピー先では必ず root:root
+                "--chmod=Du=rwx,Dgo=rx",   # ★ ディレクトリだけは 0755 相当に矯正（Git/umask差で崩れやすい対策）
                 f"{overlay}/",
                 str(CHROOT) + "/"
             ])
@@ -741,6 +900,22 @@ def _copy_overlay():
     _run(["sudo", "chroot", str(CHROOT), "visudo", "-cf",      "/etc/sudoers"])
     _run(["sudo", "chroot", str(CHROOT), "chown",
          "-R", "root:root", "/etc/sudoers.d"])
+
+
+    # 追加の安全検査（/etc の world-writable を確実に潰す）
+    # ここで引っかかる場合、overlay 以外から崩れている可能性もあるので、明示的に落とす
+    try:
+        st = (CHROOT / "etc").stat()
+        perm = stat.S_IMODE(st.st_mode)
+        if (perm & OVERLAY_PERM_FORBID_MASK) != 0:
+            raise RuntimeError(
+                "\n❌ ERROR: chroot の /etc が group/other writable です。\n"
+                f"  /etc mode={_fmt_mode(perm)}\n"
+                "ISO に取り込むとセキュリティ前提のアプリが起動を拒否します。\n"
+                "overlay の権限や rsync の適用内容を確認してください。\n"
+            )
+    except FileNotFoundError:
+        pass
 
     print("Overlay files copied.")
 
