@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import math
 import textwrap
 import tempfile
 import shutil
@@ -25,6 +26,15 @@ LOG_DIR = ROOT / "log"
 # workディレクトリをtmpfs（RAMディスク）にマウントする際の容量
 # 環境変数OYO_TMPFS_SIZEで変更可能（例: "8G", "16G", "80%"）。デフォルトは8G。
 TMPFS_SIZE = os.getenv("OYO_TMPFS_SIZE", "8G")
+
+# SquashFS 圧縮のデフォルトを設定
+# 例:
+#   OYO_SQUASHFS_COMP=zstd
+#   OYO_SQUASHFS_LEVEL=15
+#   OYO_SQUASHFS_PROCS=2
+SQUASHFS_COMP  = os.getenv("OYO_SQUASHFS_COMP", "zstd")  # zstd|xz|lz4 など
+SQUASHFS_LEVEL = os.getenv("OYO_SQUASHFS_LEVEL", "15")
+SQUASHFS_PROCS = os.getenv("OYO_SQUASHFS_PROCS", "")     # 未指定なら自動
 
 # --- ビルドに必要な外部コマンド ---
 REQUIRED_COMMANDS = [
@@ -104,6 +114,63 @@ def _mount_tmpfs(path: Path):
     print(f"Mounted tmpfs ({TMPFS_SIZE}) on {path}")
     _register_unmount(path)
 
+def _mem_total_gib() -> float:
+    """
+    /proc/meminfo から物理メモリ総量を GiB で返す（失敗時は 0）
+    """
+    try:
+        meminfo = Path("/proc/meminfo").read_text(encoding="utf-8", errors="ignore").splitlines()
+        for line in meminfo:
+            if line.startswith("MemTotal:"):
+                # MemTotal:  8123456 kB
+                kb = int(line.split()[1])
+                return kb / (1024 * 1024)
+    except Exception:
+        pass
+    return 0.0
+
+def _auto_squashfs_procs() -> int:
+    """
+    物理メモリ量から squashfs 圧縮の並列数を安全側に決める。
+    目安:
+      - 〜8GiB   : 2
+      - 〜16GiB  : 4
+      - 16GiB超  : 6（上限を設ける）
+    """
+    cpus = os.cpu_count() or 1
+    mem = _mem_total_gib()
+    if mem <= 0:
+        # 取得できない場合は保守的に
+        return max(1, min(cpus, 2))
+    if mem <= 8.5:
+        return max(1, min(cpus, 2))
+    if mem <= 16.5:
+        return max(1, min(cpus, 4))
+    return max(1, min(cpus, 6))
+
+def _squashfs_args() -> list[str]:
+    """
+    mksquashfs の圧縮引数を組み立てる。
+    """
+    comp = SQUASHFS_COMP.strip().lower()
+    # 並列数
+    if SQUASHFS_PROCS.strip():
+        procs = max(1, int(SQUASHFS_PROCS))
+    else:
+        procs = _auto_squashfs_procs()
+
+    args = ["-comp", comp, "-processors", str(procs)]
+
+    # 方式ごとのチューニング（速度/メモリ優先）
+    if comp == "zstd":
+        # だいたい level 15 前後が速度とサイズのバランス良いことが多い
+        args += ["-Xcompression-level", str(int(SQUASHFS_LEVEL))]
+    elif comp == "xz":
+        # dict-size 100% はメモリ爆増の元なので固定にする（必要なら env で別途拡張してもよい）
+        args += ["-Xdict-size", "64M"]
+    # lz4 などは追加オプション不要
+
+    return args
 
 def get_configs() -> list[Path]:
     """
@@ -985,16 +1052,15 @@ def build_iso():
     squashfs = live_dir / "filesystem.squashfs"
     print("Creating squashfs image…")
 
-    # squashfs 生成の高速化: LZ4 + 全コア使用
-    cpus = os.cpu_count() or 1
+    # squashfs 圧縮はメモリを大きく消費するため、安全側の並列数＆方式にする
+    sq_args = _squashfs_args()
+    logger.info("SquashFS args: %s", " ".join(sq_args))
 
     _run([
         "sudo", "mksquashfs",
         str(CHROOT),
         str(squashfs),
-        #        "-comp", "lz4",  # 圧縮方式: lz4（高速、低圧縮）
-        "-comp", "xz", "-Xdict-size", "100%",  # 圧縮方式: xz（低速、高圧縮）
-        "-processors", str(cpus),   # 全コア数を指定（1以上）
+        *sq_args,
         "-e", "live"
     ])
     print(f"Squashfs image created at {squashfs}")
