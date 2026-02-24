@@ -55,9 +55,49 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
               mmdebstrap \
+              rsync \
+              squashfs-tools \
+              xorriso \
+              dosfstools \
+              mtools \
+              xz-utils \
+              grub-common \
+              grub-pc-bin \
+              grub-efi-amd64-bin \
+              shim-signed \
               debian-archive-keyring \
-              squashfs-tools grub-efi-amd64-bin shim-signed \
-              xorriso dosfstools rsync
+              git
+
+      ##################################################################
+      # 3-1. デバッグコード
+      ##################################################################
+              
+      - name: Debug grub toolchain
+        run: |
+          echo "=== Basic tool paths ==="
+          command -v grub-mkrescue || true
+          command -v xorriso || true
+          command -v mformat || true
+          command -v mmdebstrap || true
+
+          echo ""
+          echo "=== Versions ==="
+          grub-mkrescue --version || true
+          xorriso --version || true
+          mmdebstrap --version || true
+
+          echo ""
+          echo "=== Installed grub packages ==="
+          dpkg -l | egrep 'grub-(common|pc-bin|efi-amd64-bin|efi-amd64-signed)' || true
+
+          echo ""
+          echo "=== Check i386-pc modules (BIOS support) ==="
+          ls -l /usr/lib/grub/i386-pc 2>/dev/null || echo "i386-pc modules NOT found"
+
+          echo ""
+          echo "=== Check x86_64-efi modules (UEFI support) ==="
+          ls -l /usr/lib/grub/x86_64-efi 2>/dev/null || echo "x86_64-efi modules NOT found"
+          
       ##################################################################
       # 4. Python 仮想環境と Python 依存
       ##################################################################
