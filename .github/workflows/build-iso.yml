@@ -43,7 +43,6 @@ jobs:
         with:
           path: |
             /var/cache/apt/archives
-            /var/lib/apt/lists
           key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/iso-build.yml') }}
           restore-keys: |
             ${{ runner.os }}-apt-
@@ -55,10 +54,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            mmdebstrap \
-            squashfs-tools grub-efi-amd64-bin shim-signed \
-            xorriso dosfstools rsync
-
+              mmdebstrap \
+              debian-archive-keyring \
+              squashfs-tools grub-efi-amd64-bin shim-signed \
+              xorriso dosfstools rsync
       ##################################################################
       # 4. Python 仮想環境と Python 依存
       ##################################################################
