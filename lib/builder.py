@@ -39,7 +39,6 @@ SQUASHFS_PROCS = os.getenv("OYO_SQUASHFS_PROCS", "")     # 未指定なら自動
 
 # --- ビルドに必要な外部コマンド ---
 REQUIRED_COMMANDS = [
-    "sudo",
     "mmdebstrap",
     "grub-mkrescue",
     "mksquashfs",
@@ -56,6 +55,9 @@ REQUIRED_COMMANDS = [
     "chpasswd",
     "mountpoint",
 ]
+
+# スクリプトが root で実行中か
+IS_ROOT = (os.geteuid() == 0)
 
 # ─────────────────────────────────────────────────────────────
 # overlay パーミッション検査設定
@@ -350,8 +352,13 @@ def _check_host_dependencies():
     ビルドに必要な外部コマンドが揃っているか事前に検査する。
     未導入の場合はエラーで強制終了し、途中ビルド失敗を防ぐ。
     """
+    required_commands = REQUIRED_COMMANDS.copy()
+    # 非root実行時のみ権限昇格のために sudo が必要
+    if not IS_ROOT:
+        required_commands.append("sudo")
+
     missing = []
-    for cmd in REQUIRED_COMMANDS:
+    for cmd in required_commands:
         if shutil.which(cmd) is None:
             missing.append(cmd)
     if missing:
@@ -474,10 +481,6 @@ def initialize(use_tmpfs: bool = False):
     if use_tmpfs:
         _mount_tmpfs(WORK)
         print("tmpfs created")
-
-
-# スクリプトが root で実行中か
-IS_ROOT = (os.geteuid() == 0)
 
 
 def _run(cmd, **kwargs):
@@ -1398,4 +1401,3 @@ def _bind_resolv_conf():
 
     # 5) 例外終了でも確実に後始末できるよう登録
     _register_unmount(target)
-
