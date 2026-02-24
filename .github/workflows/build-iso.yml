@@ -90,6 +90,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: openYellowOS-ISO
-          path: *.iso    # builder.py が出力する ISO 置き場
-
+          path: "*.iso"    # builder.py が出力する ISO 置き場
 
