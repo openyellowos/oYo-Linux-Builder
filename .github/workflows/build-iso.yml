@@ -68,6 +68,15 @@ jobs:
               debian-archive-keyring \
               git
 
+      # actions/cache が /var/cache/apt/archives を読めず Warning になるのを防ぐ
+      - name: Fix permissions for apt cache (for actions/cache)
+        if: always()
+        run: |
+          sudo rm -f /var/cache/apt/archives/lock || true
+          sudo rm -f /var/cache/apt/archives/partial/lock || true
+          sudo chown -R "$USER:$USER" /var/cache/apt/archives || true
+          sudo chmod -R u+rwX,go+rX /var/cache/apt/archives || true
+
       ##################################################################
       # 3-1. デバッグコード
       ##################################################################
