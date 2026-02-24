@@ -479,8 +479,11 @@ def initialize(use_tmpfs: bool = False):
 
     # フラグが True のときだけ tmpfs をマウント
     if use_tmpfs:
-        _mount_tmpfs(WORK)
-        print("tmpfs created")
+        try:
+            _mount_tmpfs(WORK)
+            print("tmpfs created")
+        except subprocess.CalledProcessError:
+            print("[WARN] tmpfs mount failed; continuing without tmpfs")
 
 
 def _run(cmd, **kwargs):

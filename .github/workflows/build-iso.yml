@@ -85,7 +85,7 @@ jobs:
             --flavor gnome \
             --lang ${{ matrix.lang }} \
             --brand oYo \
-            build --tmpfs
+            build
 
       ##################################################################
       # 6. 成果物アップロード
