@@ -64,8 +64,9 @@ gparted
 # .debファイルインストール GUI
 gdebi
 
-# 管理操作を行うための Nautilus の拡張機能
+# Nautilus の拡張機能
 nautilus-admin
+nautilus-extension-gnome-terminal
 
 # L2TP VPN プラグイン GUI
 network-manager-l2tp-gnome
