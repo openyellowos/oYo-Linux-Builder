@@ -24,3 +24,4 @@ apt install -y oyo-ui-changer
 apt install -y oyo-sys-tools
 apt install -y oyo-gjs-osk
 apt install -y oyo-calamares
+apt install -y oyo-portable-usb-creator

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=oYo Portable Session Setup
+Exec=/bin/sh -c 'sleep 3; /usr/local/bin/oyo-apply-portable-mode --session'
+Terminal=false
+StartupNotify=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
