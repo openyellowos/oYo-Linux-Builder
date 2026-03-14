@@ -9,6 +9,24 @@ is_portable_mode() {
     grep -qw 'oyo.mode=portable' /proc/cmdline
 }
 
+ensure_dir() {
+    local path="$1"
+    local mode="$2"
+
+    mkdir -p "$path"
+    chmod "$mode" "$path" 2>/dev/null || true
+}
+
+ensure_owner_if_user_exists() {
+    local path="$1"
+    local user="$2"
+    local group="$3"
+
+    if id "$user" >/dev/null 2>&1; then
+        chown "$user:$group" "$path" 2>/dev/null || true
+    fi
+}
+
 hide_calamares_menu() {
     mkdir -p /usr/local/share/applications
 
@@ -49,7 +67,6 @@ remove_calamares_desktop_icons() {
 }
 
 apply_journald_volatile() {
-    # persistent journal を削除
     rm -rf /var/log/journal 2>/dev/null || true
 
     mkdir -p /etc/systemd/journald.conf.d
@@ -78,18 +95,7 @@ mount_tmpfs_if_needed() {
     fi
 }
 
-mount_cache_tmpfs() {
-
-    mkdir -p /var/cache
-
-    if ! mountpoint -q /var/cache; then
-        mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /var/cache || true
-        log "/var/cache を tmpfs 化しました"
-    fi
-}
-
 mount_log_tmpfs() {
-
     mkdir -p /var/log
 
     if ! mountpoint -q /var/log; then
@@ -97,10 +103,91 @@ mount_log_tmpfs() {
         log "/var/log を tmpfs 化しました"
     fi
 
-    # systemd が必要とするディレクトリを作成
-    mkdir -p /var/log/journal
-    mkdir -p /var/log/apt
-    mkdir -p /var/log/private
+    ensure_dir /var/log/journal 0755
+    ensure_dir /var/log/apt 0755
+    ensure_dir /var/log/private 0700
+    ensure_dir /var/log/PackageKit 0755
+}
+
+ensure_package_management_layout() {
+    #
+    # GNOME Software / PackageKit / APT が期待する基本ディレクトリを確認
+    # ここでは /var/cache 自体は tmpfs 化しない
+    #
+
+    # APT
+    ensure_dir /var/cache/apt 0755
+    ensure_dir /var/cache/apt/archives 0755
+    ensure_dir /var/cache/apt/archives/partial 0700
+    ensure_owner_if_user_exists /var/cache/apt/archives/partial _apt root
+
+    ensure_dir /var/lib/apt 0755
+    ensure_dir /var/lib/apt/lists 0755
+    ensure_dir /var/lib/apt/lists/partial 0700
+    ensure_owner_if_user_exists /var/lib/apt/lists/partial _apt root
+
+    # PackageKit
+    ensure_dir /var/cache/PackageKit 0755
+    ensure_dir /var/cache/PackageKit/downloads 0755
+    ensure_dir /var/cache/PackageKit/metadata 0755
+    ensure_dir /var/lib/PackageKit 0755
+
+    # AppStream / app-info / GNOME Software
+    ensure_dir /var/cache/app-info 0755
+    ensure_dir /var/cache/app-info/xmls 0755
+    ensure_dir /var/cache/app-info/icons 0755
+
+    ensure_dir /var/lib/app-info 0755
+    ensure_dir /var/lib/app-info/yaml 0755
+    ensure_dir /var/lib/app-info/icons 0755
+
+    # software catalog 系
+    ensure_dir /var/cache/swcatalog 0755
+    ensure_dir /var/cache/swcatalog/cache 0755
+    ensure_dir /var/cache/swcatalog/icons 0755
+    ensure_dir /var/cache/swcatalog/yaml 0755
+    ensure_dir /var/lib/swcatalog 0755
+    ensure_dir /var/lib/swcatalog/yaml 0755
+    ensure_dir /var/lib/swcatalog/icons 0755
+
+    # 補助的なキャッシュ
+    ensure_dir /var/cache/fontconfig 0755
+    ensure_dir /var/cache/man 0755
+    ensure_dir /var/cache/debconf 0700
+    ensure_dir /var/cache/ldconfig 0755
+    ensure_dir /var/cache/private 0700
+
+    log "APT / PackageKit / GNOME Software 用ディレクトリを確認しました"
+}
+
+configure_packagekit_for_portable() {
+    mkdir -p /etc/PackageKit
+
+    cat >/etc/PackageKit/PackageKit.conf <<'EOF'
+[Daemon]
+UseSyslog=true
+KeepCache=false
+ShutdownTimeout=300
+
+[OfflineUpdate]
+AllowOfflineUpdate=false
+EOF
+
+    systemctl unmask packagekit.service 2>/dev/null || true
+    systemctl unmask packagekit.socket 2>/dev/null || true
+
+    log "PackageKit を portable 向け設定にしました"
+}
+
+configure_apt_for_portable() {
+    mkdir -p /etc/apt/apt.conf.d
+
+    cat >/etc/apt/apt.conf.d/90oyo-portable <<'EOF'
+APT::Keep-Downloaded-Packages "false";
+Acquire::Retries "3";
+EOF
+
+    log "APT を portable 向け設定にしました"
 }
 
 disable_background_writers() {
@@ -111,8 +198,6 @@ disable_background_writers() {
         apt-daily-upgrade.service
         man-db.timer
         fstrim.timer
-        packagekit.service
-        packagekit-offline-update.service
     )
 
     for u in "${units[@]}"; do
@@ -120,7 +205,14 @@ disable_background_writers() {
         systemctl mask "$u" 2>/dev/null || true
     done
 
-    log "バックグラウンド更新系ユニットを停止・mask しました"
+    # PackageKit 本体は GNOME Software のために残す
+    systemctl stop packagekit-offline-update.service 2>/dev/null || true
+    systemctl mask packagekit-offline-update.service 2>/dev/null || true
+
+    systemctl unmask packagekit.service 2>/dev/null || true
+    systemctl unmask packagekit.socket 2>/dev/null || true
+
+    log "バックグラウンド更新系ユニットを停止・mask しました（PackageKit本体は維持）"
 }
 
 apply_file_customizations() {
@@ -162,6 +254,16 @@ reduce_tracker_activity() {
     log "Tracker の監視・巡回を抑制しました"
 }
 
+refresh_packagekit_if_available() {
+    systemctl unmask packagekit.service 2>/dev/null || true
+    systemctl unmask packagekit.socket 2>/dev/null || true
+
+    if systemctl list-unit-files | grep -q '^packagekit\.service'; then
+        systemctl restart packagekit.service 2>/dev/null || true
+        log "packagekit.service を再起動しました"
+    fi
+}
+
 run_boot() {
     if ! is_portable_mode; then
         exit 0
@@ -173,8 +275,14 @@ run_boot() {
     mount_log_tmpfs
     apply_journald_volatile
     mount_tmpfs_if_needed
-    mount_cache_tmpfs
+
+    # GNOME Software 優先版:
+    # /var/cache 全体は tmpfs 化しない
+    ensure_package_management_layout
+    configure_packagekit_for_portable
+    configure_apt_for_portable
     disable_background_writers
+    refresh_packagekit_if_available
 }
 
 run_autostart() {

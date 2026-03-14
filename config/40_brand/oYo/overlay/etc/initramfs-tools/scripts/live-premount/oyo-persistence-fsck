@@ -1,0 +1,84 @@
+#!/bin/sh
+
+PREREQ=""
+
+prereqs() {
+    echo "$PREREQ"
+}
+
+case "$1" in
+    prereqs)
+        prereqs
+        exit 0
+        ;;
+esac
+
+log() {
+    echo "[oyo-fsck] $*" > /dev/kmsg
+}
+
+get_cmdline_value() {
+    local key="$1"
+    for x in $(cat /proc/cmdline); do
+        case "$x" in
+            "$key"=*)
+                echo "${x#*=}"
+                return 0
+                ;;
+        esac
+    done
+    return 1
+}
+
+has_cmdline_flag() {
+    local key="$1"
+    for x in $(cat /proc/cmdline); do
+        [ "$x" = "$key" ] && return 0
+    done
+    return 1
+}
+
+# persistence が無ければ何もしない
+has_cmdline_flag persistence || exit 0
+
+# LUKS はここでは触らない
+enc="$(get_cmdline_value persistence-encryption || true)"
+if [ "$enc" = "luks" ]; then
+    log "skip fsck for luks persistence (handled by live-boot path)"
+    exit 0
+fi
+
+# ラベルは persistence を既定値にする
+label="$(get_cmdline_value persistence-label || true)"
+[ -n "$label" ] || label="persistence"
+
+DEV="$(blkid -L "$label" 2>/dev/null || true)"
+
+if [ -z "$DEV" ]; then
+    log "persistence device not found: label=$label"
+    exit 0
+fi
+
+if command -v e2fsck >/dev/null 2>&1; then
+    E2FSCK="$(command -v e2fsck)"
+else
+    E2FSCK="/sbin/e2fsck"
+fi
+
+log "checking $DEV"
+"$E2FSCK" -p "$DEV"
+RC=$?
+
+case "$RC" in
+    0|1)
+        log "finished rc=$RC $DEV"
+        ;;
+    2)
+        log "finished rc=2 reboot recommended $DEV"
+        ;;
+    *)
+        log "failed rc=$RC $DEV"
+        ;;
+esac
+
+exit 0

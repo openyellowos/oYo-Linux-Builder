@@ -7,5 +7,5 @@
 #
 set -e
 
-update-initramfs -u
+update-initramfs -u -k all
 

@@ -886,6 +886,7 @@ def _copy_overlay():
             _run([
                 "sudo", "rsync",
                 "-a",                      # アーカイブ
+                "--keep-dirlinks",         # ディレクトリ向けシンボリックリンクを実ディレクトリとして扱って、その先へコピー
                 "--chown=root:root",       # ★ 追加：コピー先では必ず root:root
                 "--chmod=Du=rwx,Dgo=rx",   # ★ ディレクトリだけは 0755 相当に矯正（Git/umask差で崩れやすい対策）
                 f"{overlay}/",
