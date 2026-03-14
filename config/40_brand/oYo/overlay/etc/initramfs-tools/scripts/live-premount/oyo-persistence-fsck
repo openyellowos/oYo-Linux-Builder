@@ -18,7 +18,7 @@ log() {
 }
 
 get_cmdline_value() {
-    local key="$1"
+    key="$1"
     for x in $(cat /proc/cmdline); do
         case "$x" in
             "$key"=*)
@@ -30,55 +30,175 @@ get_cmdline_value() {
     return 1
 }
 
-has_cmdline_flag() {
-    local key="$1"
+has_flag() {
+    key="$1"
     for x in $(cat /proc/cmdline); do
         [ "$x" = "$key" ] && return 0
     done
     return 1
 }
 
-# persistence が無ければ何もしない
-has_cmdline_flag persistence || exit 0
+plymouth_hide() {
+    if command -v plymouth >/dev/null 2>&1; then
+        plymouth hide-splash >/dev/null 2>&1 || true
+    fi
+}
 
-# LUKS はここでは触らない
-enc="$(get_cmdline_value persistence-encryption || true)"
-if [ "$enc" = "luks" ]; then
-    log "skip fsck for luks persistence (handled by live-boot path)"
+plymouth_show() {
+    if command -v plymouth >/dev/null 2>&1; then
+        plymouth show-splash >/dev/null 2>&1 || true
+    fi
+}
+
+run_fsck() {
+    dev="$1"
+
+    if [ ! -b "$dev" ]; then
+        log "target is not a block device: $dev"
+        return 1
+    fi
+
+    type="$(blkid -o value -s TYPE "$dev" 2>/dev/null)"
+    if [ "$type" != "ext4" ]; then
+        log "skip unsupported fs type: dev=$dev type=${type:-unknown}"
+        return 1
+    fi
+
+    log "start fsck: dev=$dev type=$type"
+    /sbin/e2fsck -p "$dev"
+    rc=$?
+
+    case "$rc" in
+        0) log "fsck finished clean: dev=$dev rc=$rc" ;;
+        1) log "fsck finished corrected: dev=$dev rc=$rc" ;;
+        2) log "fsck finished corrected-reboot-needed: dev=$dev rc=$rc" ;;
+        4) log "fsck finished uncorrected-errors: dev=$dev rc=$rc" ;;
+        8) log "fsck finished operational-error: dev=$dev rc=$rc" ;;
+        16) log "fsck finished usage-or-syntax-error: dev=$dev rc=$rc" ;;
+        32) log "fsck finished canceled-by-user: dev=$dev rc=$rc" ;;
+        128) log "fsck finished shared-library-error: dev=$dev rc=$rc" ;;
+        *) log "fsck finished unknown-status: dev=$dev rc=$rc" ;;
+    esac
+
+    return 0
+}
+
+# /dev/sdb3 -> /dev/sdb4
+# /dev/nvme0n1p3 -> /dev/nvme0n1p4
+# /dev/mmcblk0p3 -> /dev/mmcblk0p4
+next_partition() {
+    dev="$1"
+
+    case "$dev" in
+        *p[0-9]*)
+            base="${dev%p*}"
+            num="${dev##*p}"
+            ;;
+        *)
+            base="${dev%[0-9]*}"
+            num="${dev##*[!0-9]}"
+            ;;
+    esac
+
+    [ -n "$num" ] || return 1
+
+    next=$((num + 1))
+
+    case "$dev" in
+        *p[0-9]*)
+            echo "${base}p${next}"
+            ;;
+        *)
+            echo "${base}${next}"
+            ;;
+    esac
+}
+
+has_flag persistence || exit 0
+
+persist_label="$(get_cmdline_value persistence-label)"
+[ -n "$persist_label" ] || persist_label="persistence"
+
+live_dev="$(blkid -L OYOPORT_LIVE 2>/dev/null)"
+
+if [ -z "$live_dev" ]; then
+    log "script ran, but OYOPORT_LIVE was not found; fsck skipped"
     exit 0
 fi
 
-# ラベルは persistence を既定値にする
-label="$(get_cmdline_value persistence-label || true)"
-[ -n "$label" ] || label="persistence"
-
-DEV="$(blkid -L "$label" 2>/dev/null || true)"
-
-if [ -z "$DEV" ]; then
-    log "persistence device not found: label=$label"
+if [ ! -b "$live_dev" ]; then
+    log "script ran, but live device is invalid: $live_dev; fsck skipped"
     exit 0
 fi
 
-if command -v e2fsck >/dev/null 2>&1; then
-    E2FSCK="$(command -v e2fsck)"
-else
-    E2FSCK="/sbin/e2fsck"
+candidate="$(next_partition "$live_dev")"
+
+if [ -z "$candidate" ]; then
+    log "script ran, but could not calculate persistence partition from $live_dev; fsck skipped"
+    exit 0
 fi
 
-log "checking $DEV"
-"$E2FSCK" -p "$DEV"
-RC=$?
+if [ ! -b "$candidate" ]; then
+    log "script ran, but persistence candidate does not exist: live=$live_dev candidate=$candidate; fsck skipped"
+    exit 0
+fi
 
-case "$RC" in
-    0|1)
-        log "finished rc=$RC $DEV"
-        ;;
-    2)
-        log "finished rc=2 reboot recommended $DEV"
-        ;;
-    *)
-        log "failed rc=$RC $DEV"
-        ;;
-esac
+cand_type="$(blkid -o value -s TYPE "$candidate" 2>/dev/null)"
+cand_label="$(blkid -o value -s LABEL "$candidate" 2>/dev/null)"
 
+log "start: live=$live_dev candidate=$candidate type=${cand_type:-unknown} label=${cand_label:-none} persistence_label=$persist_label"
+
+# 1. 非暗号化 persistence
+if [ "$cand_type" = "ext4" ] && [ "$cand_label" = "$persist_label" ]; then
+    log "plain persistence found: dev=$candidate"
+    run_fsck "$candidate"
+    exit 0
+fi
+
+# 2. LUKS persistence
+if [ "$cand_type" = "crypto_LUKS" ]; then
+    mapper="oyo_persist"
+
+    log "luks persistence candidate found: dev=$candidate"
+
+    # パスフレーズ入力を見えるようにする
+    plymouth_hide
+
+    /sbin/cryptsetup open "$candidate" "$mapper"
+    rc=$?
+
+    # splash を戻す
+    plymouth_show
+
+    if [ "$rc" -ne 0 ]; then
+        log "luks open failed: dev=$candidate rc=$rc"
+        exit 0
+    fi
+
+    inner="/dev/mapper/$mapper"
+
+    if [ ! -b "$inner" ]; then
+        log "mapper not created after luks open: $inner"
+        /sbin/cryptsetup close "$mapper" >/dev/null 2>&1 || true
+        exit 0
+    fi
+
+    inner_type="$(blkid -o value -s TYPE "$inner" 2>/dev/null)"
+    inner_label="$(blkid -o value -s LABEL "$inner" 2>/dev/null)"
+
+    log "luks opened: outer=$candidate inner=$inner type=${inner_type:-unknown} label=${inner_label:-none}"
+
+    if [ "$inner_type" = "ext4" ] && [ "$inner_label" = "$persist_label" ]; then
+        run_fsck "$inner"
+        /sbin/cryptsetup close "$mapper" >/dev/null 2>&1 || true
+        log "luks closed after fsck: $mapper"
+        exit 0
+    fi
+
+    log "opened luks does not match persistence label: inner=$inner type=${inner_type:-unknown} label=${inner_label:-none}"
+    /sbin/cryptsetup close "$mapper" >/dev/null 2>&1 || true
+    exit 0
+fi
+
+log "script ran, but candidate was not usable for persistence fsck: dev=$candidate type=${cand_type:-unknown} label=${cand_label:-none}; fsck skipped"
 exit 0
