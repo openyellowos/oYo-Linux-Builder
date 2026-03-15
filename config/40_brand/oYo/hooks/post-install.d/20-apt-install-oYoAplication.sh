@@ -11,9 +11,10 @@ set -e
 dpkg -i /usr/share/openyellowos/oyo-archive-keyring_1.0_all.deb
 
 # 2) リポ登録（amd64 限定）
-install -d -m 0755 /etc/apt/keyrings
+#    keyring deb は /usr/share/keyrings/oyo-archive.gpg を配置するため
+#    signed-by も同一パスを参照する
 tee /etc/apt/sources.list.d/oyo.list >/dev/null <<'EOF'
-deb [arch=amd64 signed-by=/etc/apt/keyrings/oyo-archive.gpg] https://deb.openyellowos.com kerria main
+deb [arch=amd64 signed-by=/usr/share/keyrings/oyo-archive.gpg] https://deb.openyellowos.com kerria main
 EOF
 
 # 3) 更新
