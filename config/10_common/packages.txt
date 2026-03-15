@@ -112,7 +112,6 @@ xorg
 xserver-xorg-input-all
 xserver-xorg-video-all
 xz-utils
-zram-tools
 zstd
 
 #################################
