@@ -291,6 +291,69 @@ redirect_home_cache_to_ram() {
     log "~/.cache -> $ram_cache に切り替えました"
 }
 
+redirect_path_to_runtime_dir() {
+    local src="$1"
+    local dst="$2"
+
+    mkdir -p "$(dirname "$src")"
+    mkdir -p "$dst"
+    chmod 700 "$dst" 2>/dev/null || true
+
+    if [ -L "$src" ]; then
+        local current target
+        current="$(readlink -f "$src" 2>/dev/null || true)"
+        target="$(readlink -f "$dst" 2>/dev/null || true)"
+        if [ -n "$current" ] && [ -n "$target" ] && [ "$current" = "$target" ]; then
+            log "$src はすでに RAM 化済みです"
+            return 0
+        fi
+        rm -f "$src"
+    elif [ -d "$src" ]; then
+        rm -rf "$src"
+    elif [ -e "$src" ]; then
+        rm -f "$src"
+    fi
+
+    ln -sfn "$dst" "$src"
+    log "$src -> $dst に切り替えました"
+}
+
+redirect_chrome_runtime_paths_to_ram() {
+    if [ -z "${HOME:-}" ]; then
+        log "HOME が無いため Chrome 用 RAM 化をスキップ"
+        return 0
+    fi
+
+    if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+        log "XDG_RUNTIME_DIR が無いため Chrome 用 RAM 化をスキップ"
+        return 0
+    fi
+
+    local chrome_config_dir="$HOME/.config/google-chrome"
+    local chrome_runtime_base="$XDG_RUNTIME_DIR/oyo-google-chrome"
+
+    if [ ! -d "$chrome_config_dir" ] && [ ! -L "$chrome_config_dir" ]; then
+        mkdir -p "$chrome_config_dir"
+    fi
+
+    mkdir -p "$chrome_runtime_base"
+    chmod 700 "$chrome_runtime_base" 2>/dev/null || true
+
+    redirect_path_to_runtime_dir \
+        "$chrome_config_dir/Service Worker" \
+        "$chrome_runtime_base/Service Worker"
+
+    redirect_path_to_runtime_dir \
+        "$chrome_config_dir/Code Cache" \
+        "$chrome_runtime_base/Code Cache"
+
+    redirect_path_to_runtime_dir \
+        "$chrome_config_dir/GPUCache" \
+        "$chrome_runtime_base/GPUCache"
+
+    log "Chrome の Service Worker / Code Cache / GPUCache を RAM 化しました"
+}
+
 refresh_packagekit_if_available() {
     systemctl unmask packagekit.service 2>/dev/null || true
     systemctl unmask packagekit.socket 2>/dev/null || true
@@ -348,6 +411,7 @@ run_session() {
     log "portable モード検出 (--session)"
 
     redirect_home_cache_to_ram
+    redirect_chrome_runtime_paths_to_ram
     update_favorite_apps
     reduce_tracker_activity
 }
