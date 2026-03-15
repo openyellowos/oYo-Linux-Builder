@@ -254,6 +254,43 @@ reduce_tracker_activity() {
     log "Tracker の監視・巡回を抑制しました"
 }
 
+redirect_home_cache_to_ram() {
+    if [ -z "${HOME:-}" ]; then
+        log "HOME が無いため ~/.cache の RAM 化をスキップ"
+        return 0
+    fi
+
+    if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+        log "XDG_RUNTIME_DIR が無いため ~/.cache の RAM 化をスキップ"
+        return 0
+    fi
+
+    local ram_cache="$XDG_RUNTIME_DIR/oyo-cache"
+    local home_cache="$HOME/.cache"
+
+    mkdir -p "$ram_cache"
+    chmod 700 "$ram_cache" 2>/dev/null || true
+    mkdir -p "$HOME"
+
+    if [ -L "$home_cache" ]; then
+        local current target
+        current="$(readlink -f "$home_cache" 2>/dev/null || true)"
+        target="$(readlink -f "$ram_cache" 2>/dev/null || true)"
+        if [ -n "$current" ] && [ -n "$target" ] && [ "$current" = "$target" ]; then
+            log "~/.cache はすでに RAM 化済みです"
+            return 0
+        fi
+        rm -f "$home_cache"
+    elif [ -d "$home_cache" ]; then
+        rm -rf "$home_cache"
+    elif [ -e "$home_cache" ]; then
+        rm -f "$home_cache"
+    fi
+
+    ln -sfn "$ram_cache" "$home_cache"
+    log "~/.cache -> $ram_cache に切り替えました"
+}
+
 refresh_packagekit_if_available() {
     systemctl unmask packagekit.service 2>/dev/null || true
     systemctl unmask packagekit.socket 2>/dev/null || true
@@ -310,6 +347,7 @@ run_session() {
 
     log "portable モード検出 (--session)"
 
+    redirect_home_cache_to_ram
     update_favorite_apps
     reduce_tracker_activity
 }
