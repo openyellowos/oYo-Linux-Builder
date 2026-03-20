@@ -1,13 +1,11 @@
 [Unit]
-Description=A service that runs only once after installation
-After=network.target
+Description=oYo first boot setup
+After=multi-user.target
 
 [Service]
-ExecStart=/bin/bash -c "/usr/lib/custom/firstboot.sh \
-        && /usr/bin/systemctl disable firstboot.service"
-ExecStop=/bin/kill ${MAINPID}
-Restart=no
 Type=oneshot
+ExecStart=/usr/lib/custom/firstboot.sh
+RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target

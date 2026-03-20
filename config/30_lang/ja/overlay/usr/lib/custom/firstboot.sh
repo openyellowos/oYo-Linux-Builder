@@ -1,57 +1,76 @@
 #!/bin/bash
+set -eu
 
 #*****************************************************************************************************************
 #
 # インストール後、初回起動時のみ実行される処理
 #
+# 役割:
+#   1. Calamares が残したキーボード設定を整理
+#   2. gjsosk / dconf / fcitx5 profile を最終レイアウトに合わせて修正
+#   3. インストーラ関連パッケージを削除
+#   4. autoremove / clean を実行
+#   5. 自分自身を無効化
+#
+# 想定:
+#   - systemd の oneshot service として root で実行
+#   - そのため sudo は使わない
+#
 #*****************************************************************************************************************
 
-#----------------------------------------------------------------------------------------------------------------
-# calamaresでjpキーボードを選択した時
-# /etc/default/keyboardファイルに、「us,jp」という設定を追加する
-# 「us」は不要であるため、削除を行う
-#
-# 処理例
-#   処理前      処理後
-#   us,jp	jp
-#   jp,us	us
-#   us,de	de
-#   us,us	us
-#   us	        us
-#   fr	        fr
-#----------------------------------------------------------------------------------------------------------------
+STAMP_FILE="/var/lib/oYo/firstboot.done"
+LOG_TAG="oYo-firstboot"
 
-KEYBD=/etc/default/keyboard
-XORG=/etc/X11/xorg.conf.d/00-keyboard.conf
+KEYBD="/etc/default/keyboard"
+XORG="/etc/X11/xorg.conf.d/00-keyboard.conf"
+GJSOSK_DCONF="/etc/dconf/db/local.d/10-gjsosk"
+INPUT_SOURCES_DCONF="/etc/dconf/db/local.d/10-input-sources"
+CUSTOM_PROFILE="/usr/lib/custom/profile"
+SKEL_PROFILE="/etc/skel/.config/fcitx5/profile"
 
+SERVICE_NAME="firstboot.service"
+
+log() {
+    echo "[$LOG_TAG] $*"
+}
+
+# すでに完了済みなら何もしない
+if [ -e "$STAMP_FILE" ]; then
+    log "already completed: $STAMP_FILE"
+    exit 0
+fi
+
+mkdir -p /var/lib/oYo
+
+#----------------------------------------------------------------------------------------------------------------
 # 1) 現在のキーボード設定を読み込む
+#    Calamares で "us,jp" のように入ることがあるため、末尾要素を採用する
+#----------------------------------------------------------------------------------------------------------------
 XKBMODEL="pc105"
 XKBLAYOUT="jp"
-[ -f "$KEYBD" ] && . "$KEYBD"
 
-# 2) カンマ区切りの末尾要素を採用
-IFS=',' read -ra LAYOUTS <<< "$XKBLAYOUT"
-FINAL_LAYOUT="${LAYOUTS[-1]:-$XKBLAYOUT}"
+if [ -f "$KEYBD" ]; then
+    # shellcheck disable=SC1090
+    . "$KEYBD"
+fi
 
-echo "[fix-keyboard] '$XKBLAYOUT' → '$FINAL_LAYOUT' (model: $XKBMODEL)"
+IFS=',' read -r -a LAYOUTS <<< "${XKBLAYOUT:-jp}"
+FINAL_LAYOUT="${LAYOUTS[${#LAYOUTS[@]}-1]:-${XKBLAYOUT:-jp}}"
+
+log "keyboard layout: '${XKBLAYOUT:-}' -> '${FINAL_LAYOUT}' (model: ${XKBMODEL:-pc105})"
 
 #----------------------------------------------------------------------------------------------------------------
-# gjsosk のレイアウト（layout-landscape / layout-portrait）を
-# Calamaresで選択されたキーボード配列に合わせて切り替える
-#
-# jp のとき: 11(oYo 日本語レイアウト)
-# それ以外: 10(oYo 英字レイアウト)
+# 2) gjsosk のレイアウトを設定
+#    jp のとき: 11
+#    それ以外: 10
 #----------------------------------------------------------------------------------------------------------------
-
-GJSOSK_DCONF=/etc/dconf/db/local.d/10-gjsosk
-
 if [ "$FINAL_LAYOUT" = "jp" ]; then
     GJSOSK_LAYOUT_VAL=11
 else
     GJSOSK_LAYOUT_VAL=10
 fi
 
-echo "[gjsosk] FINAL_LAYOUT='$FINAL_LAYOUT' -> layout-landscape/portrait=$GJSOSK_LAYOUT_VAL"
+log "gjsosk layout => $GJSOSK_LAYOUT_VAL"
 
 mkdir -p "$(dirname "$GJSOSK_DCONF")"
 cat > "$GJSOSK_DCONF" <<EOF
@@ -60,12 +79,32 @@ layout-landscape=$GJSOSK_LAYOUT_VAL
 layout-portrait=$GJSOSK_LAYOUT_VAL
 EOF
 
-
+#----------------------------------------------------------------------------------------------------------------
 # 3) /etc/default/keyboard を更新
-sed -E -i "s/^XKBLAYOUT=.*/XKBLAYOUT=\"${FINAL_LAYOUT}\"/" "$KEYBD" \
-  || echo "XKBLAYOUT=\"${FINAL_LAYOUT}\"" >> "$KEYBD"
+#----------------------------------------------------------------------------------------------------------------
+if [ -f "$KEYBD" ]; then
+    if grep -q '^XKBLAYOUT=' "$KEYBD"; then
+        sed -E -i "s/^XKBLAYOUT=.*/XKBLAYOUT=\"${FINAL_LAYOUT}\"/" "$KEYBD"
+    else
+        echo "XKBLAYOUT=\"${FINAL_LAYOUT}\"" >> "$KEYBD"
+    fi
 
+    if grep -q '^XKBMODEL=' "$KEYBD"; then
+        sed -E -i "s/^XKBMODEL=.*/XKBMODEL=\"${XKBMODEL}\"/" "$KEYBD"
+    else
+        echo "XKBMODEL=\"${XKBMODEL}\"" >> "$KEYBD"
+    fi
+else
+    mkdir -p "$(dirname "$KEYBD")"
+    cat > "$KEYBD" <<EOF
+XKBMODEL="${XKBMODEL}"
+XKBLAYOUT="${FINAL_LAYOUT}"
+EOF
+fi
+
+#----------------------------------------------------------------------------------------------------------------
 # 4) /etc/X11/xorg.conf.d を生成
+#----------------------------------------------------------------------------------------------------------------
 mkdir -p "$(dirname "$XORG")"
 cat > "$XORG" <<EOF
 Section "InputClass"
@@ -77,43 +116,96 @@ EndSection
 EOF
 
 #----------------------------------------------------------------------------------------------------------------
-# fcitxのprofileファイルに
-# calamaresで選択したキーボードレイアウトを設定する
+# 5) dconf の input sources を更新
 #----------------------------------------------------------------------------------------------------------------
+if [ -f "$INPUT_SOURCES_DCONF" ]; then
+    tmp="$(mktemp)"
+    sed -E "s/'xkb', '[^']*'/'xkb', '${FINAL_LAYOUT}'/g" "$INPUT_SOURCES_DCONF" > "$tmp"
+    mv "$tmp" "$INPUT_SOURCES_DCONF"
+fi
 
-# 10-input-sourcesの「'xkb', 'XX'」を「'xkb', '$FINAL_LAYOUT'」に書き換え
-cat /etc/dconf/db/local.d/10-input-sources | sed -e s/"'xkb', '.*'"/"'xkb', '$FINAL_LAYOUT'"/g > hoge.txt
-mv hoge.txt /etc/dconf/db/local.d/10-input-sources
-dconf update
-
-# profileファイルの「Default Layout=」に「$FINAL_LAYOUT」をセット
-cat /usr/lib/custom/profile | sed -e s/"Default Layout=.*"/"Default Layout=$FINAL_LAYOUT"/g > hoge.txt
-mv hoge.txt /usr/lib/custom/profile
-
-# profileファイルの「Name=keyboard-」に「$FINAL_LAYOUT」をセット
-cat /usr/lib/custom/profile | sed -e s/"Name=keyboard-.*"/"Name=keyboard-$FINAL_LAYOUT"/g > hoge.txt
-mv hoge.txt /usr/lib/custom/profile
+# dconf DB 更新
+if command -v dconf >/dev/null 2>&1; then
+    dconf update || true
+fi
 
 #----------------------------------------------------------------------------------------------------------------
-# インストール時に作成されるユーザーのhomeディレクトリのprofileファイルを
-# 修正したファイルで上書き
+# 6) fcitx5 profile を更新
 #----------------------------------------------------------------------------------------------------------------
-dir_path="/home/*"
-#HOMEディレクトリ直下にあるディレクトリのパスを取得
-dirs=`find $dir_path -maxdepth 0 -type d`
-
-for dir in $dirs;
-do
-    #/home/[ユーザー名]からユーザー名を取得
-    user=${dir:6}
-    #skelディレクトリ配下を/home/[ユーザー名]にコピー
-    cp /usr/lib/custom/profile $dir/.config/fcitx5/profile
-     #所有者をユーザーに変更
-    chown -R $user:$user $dir
-done
+if [ -f "$CUSTOM_PROFILE" ]; then
+    tmp="$(mktemp)"
+    sed -E \
+        -e "s/^Default Layout=.*/Default Layout=${FINAL_LAYOUT}/" \
+        -e "s/^Name=keyboard-.*/Name=keyboard-${FINAL_LAYOUT}/" \
+        "$CUSTOM_PROFILE" > "$tmp"
+    mv "$tmp" "$CUSTOM_PROFILE"
+fi
 
 #----------------------------------------------------------------------------------------------------------------
-#skelディレクトリのprofileファイルを、修正したファイルで上書き
+# 7) 既存ユーザーの profile を上書き
 #----------------------------------------------------------------------------------------------------------------
-cp /usr/lib/custom/profile /etc/skel/.config/fcitx5/profile
+if [ -f "$CUSTOM_PROFILE" ] && [ -d /home ]; then
+    for dir in /home/*; do
+        [ -d "$dir" ] || continue
 
+        user="$(basename "$dir")"
+
+        # /home 配下の通常ユーザーのみを想定
+        mkdir -p "$dir/.config/fcitx5"
+        cp -f "$CUSTOM_PROFILE" "$dir/.config/fcitx5/profile"
+
+        # ユーザーが存在する時だけ chown
+        if id "$user" >/dev/null 2>&1; then
+            chown "$user:$user" "$dir/.config/fcitx5/profile"
+            chown "$user:$user" "$dir/.config/fcitx5"
+            chown "$user:$user" "$dir/.config"
+        fi
+    done
+fi
+
+#----------------------------------------------------------------------------------------------------------------
+# 8) /etc/skel の profile も更新
+#----------------------------------------------------------------------------------------------------------------
+if [ -f "$CUSTOM_PROFILE" ]; then
+    mkdir -p "$(dirname "$SKEL_PROFILE")"
+    cp -f "$CUSTOM_PROFILE" "$SKEL_PROFILE"
+fi
+
+#----------------------------------------------------------------------------------------------------------------
+# 9) インストーラ関連パッケージを削除
+#    post-install ではなく firstboot で実行する
+#----------------------------------------------------------------------------------------------------------------
+log "purging installer packages"
+
+APT_GET="apt-get -y -o Dpkg::Use-Pty=0"
+
+# 存在するものだけ削除したいので、失敗しても継続
+$APT_GET purge oyo-calamares gparted calamares calamares-settings-debian || true
+
+#----------------------------------------------------------------------------------------------------------------
+# 10) 不要依存を整理
+#----------------------------------------------------------------------------------------------------------------
+log "autoremove purge"
+$APT_GET autoremove --purge || true
+
+# 任意: パッケージキャッシュ整理
+log "clean apt cache"
+apt-get clean || true
+
+#----------------------------------------------------------------------------------------------------------------
+# 11) 完了印を作成
+#----------------------------------------------------------------------------------------------------------------
+date > "$STAMP_FILE"
+
+#----------------------------------------------------------------------------------------------------------------
+# 12) 自分自身を無効化
+#----------------------------------------------------------------------------------------------------------------
+log "disabling ${SERVICE_NAME}"
+systemctl disable "$SERVICE_NAME" || true
+
+# 念のため service ファイルを消したい場合は下を有効化
+# rm -f "/etc/systemd/system/${SERVICE_NAME}"
+# systemctl daemon-reload || true
+
+log "completed"
+exit 0
