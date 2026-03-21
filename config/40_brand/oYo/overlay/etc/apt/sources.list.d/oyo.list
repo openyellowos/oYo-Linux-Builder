@@ -1,1 +1,1 @@
-deb [arch=amd64 signed-by=/etc/apt/keyrings/oyo-archive.gpg] https://deb.openyellowos.com kerria main
+deb [arch=amd64 signed-by=/usr/share/keyrings/oyo-archive.gpg] https://deb.openyellowos.com kerria main
