@@ -1,6 +1,8 @@
 [Unit]
 Description=oYo first boot setup
-After=multi-user.target
+After=local-fs.target systemd-tmpfiles-setup.service
+Before=gdm.service display-manager.service graphical.target
+ConditionPathExists=!/var/lib/oYo/firstboot.done
 
 [Service]
 Type=oneshot
@@ -8,4 +10,4 @@ ExecStart=/usr/lib/custom/firstboot.sh
 RemainAfterExit=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target
