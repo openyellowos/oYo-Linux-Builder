@@ -155,6 +155,7 @@ gstreamer1.0-plugins-good
 #  Firmware Bundle #
 ####################
 # 共通 CPU / Audio
+amd64-microcode
 firmware-intel-misc
 firmware-intel-sound
 firmware-linux
@@ -162,6 +163,10 @@ firmware-linux-nonfree
 firmware-misc-nonfree
 firmware-qcom-soc
 firmware-sof-signed
+fwupd
+intel-microcode
+alsa-ucm-conf
+iio-sensor-proxy
 
 # GPU
 firmware-amd-graphics

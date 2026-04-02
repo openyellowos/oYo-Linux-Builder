@@ -39,11 +39,8 @@ gnome-shell-extensions
 
 # ソフトウェアセンター
 gnome-software
-
-# ファームウェア対応プラグイン
+gnome-software-plugin-deb
 gnome-software-plugin-fwupd
-
-# Flatpak 連携プラグイン
 gnome-software-plugin-flatpak
 
 # Nautilus クイックプレビュー
@@ -164,10 +161,6 @@ libkpmcore12
 # 電力管理用ユーティリティおよびスクリプト
 pm-utils
 
-# 各種センサ対応
-iio-sensor-proxy
-
 # ---- 開発用 ----
 dconf-editor
 galternatives
-
