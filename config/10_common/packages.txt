@@ -151,6 +151,19 @@ libgl1-mesa-dri
 gstreamer1.0-plugins-base
 gstreamer1.0-plugins-good
 
+#####################
+#  CLI Utilities    #
+#####################
+bind9-dnsutils
+file
+jq
+less
+man-db
+p7zip-full
+unzip
+wget
+zip
+
 ####################
 #  Firmware Bundle #
 ####################
