@@ -25,6 +25,7 @@ KEYBD="/etc/default/keyboard"
 XORG="/etc/X11/xorg.conf.d/00-keyboard.conf"
 GJSOSK_DCONF="/etc/dconf/db/local.d/10-gjsosk"
 INPUT_SOURCES_DCONF="/etc/dconf/db/local.d/10-input-sources"
+SESSION_DCONF="/etc/dconf/db/local.d/20-session"
 CUSTOM_PROFILE="/usr/lib/custom/profile"
 SKEL_PROFILE="/etc/skel/.config/fcitx5/profile"
 
@@ -123,6 +124,19 @@ if [ -f "$INPUT_SOURCES_DCONF" ]; then
     sed -E "s/'xkb', '[^']*'/'xkb', '${FINAL_LAYOUT}'/g" "$INPUT_SOURCES_DCONF" > "$tmp"
     mv "$tmp" "$INPUT_SOURCES_DCONF"
 fi
+
+#----------------------------------------------------------------------------------------------------------------
+# 5.5) dconf のスクリーンロック / アイドル設定を追加
+#----------------------------------------------------------------------------------------------------------------
+mkdir -p "$(dirname "$SESSION_DCONF")"
+cat > "$SESSION_DCONF" <<EOF
+[org/gnome/desktop/screensaver]
+lock-enabled=true
+lock-delay=uint32 0
+
+[org/gnome/desktop/session]
+idle-delay=uint32 300
+EOF
 
 # dconf DB 更新
 if command -v dconf >/dev/null 2>&1; then
