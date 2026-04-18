@@ -1215,14 +1215,22 @@ def build_iso():
     for fs in ("dev/pts", "dev", "sys", "proc", "etc/resolv.conf", "var/cache/apt/archives"):
         _run(["sudo", "umount", "-l", str(CHROOT / fs)])
         
-    # Live 環境用に resolv.conf を書き戻す（DNSが空になるのを防ぐ）
+    # 固定の resolv.conf をイメージへ焼き込まない。
+    # chroot 作業中の DNS は _bind_resolv_conf() の bind-mount だけで賄い、
+    # 生成物では resolvconf / NetworkManager に DNS を管理させる。
+    resolv_target = CHROOT / "etc/resolv.conf"
+
+    # bind-mount を外したあとの /etc/resolv.conf を resolvconf 管理へ戻す
+    _run(["sudo", "rm", "-f", str(resolv_target)])
+    _run(["sudo", "mkdir", "-p", str(resolv_target.parent)])
     _run([
-        "sudo", "bash", "-c",
-        f"cat > {CHROOT}/etc/resolv.conf <<'EOF'\n"
-        "nameserver 1.1.1.1\n"
-        "nameserver 8.8.8.8\n"
-        "EOF\n"
+        "sudo", "ln", "-s",
+        "/run/resolvconf/resolv.conf",
+        str(resolv_target)
     ])
+
+    # live 環境で /etc/resolv.conf が欠落しないよう、chroot 内で再生成しておく
+    _run(["sudo", "chroot", str(CHROOT), "resolvconf", "-u"])
 
     # squashfs イメージを作成
     squashfs = live_dir / "filesystem.squashfs"
