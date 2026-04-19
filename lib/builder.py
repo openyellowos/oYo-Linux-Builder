@@ -84,6 +84,7 @@ OVERLAY_EXECUTABLE_SUFFIXES = {
     ".sh",
     ".py",
     ".pl",
+    ".js",
 }
 
 
@@ -663,7 +664,8 @@ def _normalize_overlay_permissions(stage: Path):
     - symlink はそのまま
     - dir は 0755
     - file は原則 0644
-    - .sh / .py / .pl は 0755
+    - 元ファイルで user execute が立っているものは 0755 を維持
+    - 加えて .sh / .py / .pl / .js は 0755
     """
     if stage.exists():
         os.chmod(stage, 0o755)
@@ -671,6 +673,7 @@ def _normalize_overlay_permissions(stage: Path):
     for p in sorted(stage.rglob("*")):
         st = p.lstat()
         mode = st.st_mode
+        perm = stat.S_IMODE(mode)
 
         if stat.S_ISLNK(mode):
             continue
@@ -678,10 +681,8 @@ def _normalize_overlay_permissions(stage: Path):
             os.chmod(p, 0o755)
             continue
         if stat.S_ISREG(mode):
-            os.chmod(
-                p,
-                0o755 if p.suffix in OVERLAY_EXECUTABLE_SUFFIXES else 0o644
-            )
+            keep_exec = bool(perm & stat.S_IXUSR) or p.suffix in OVERLAY_EXECUTABLE_SUFFIXES
+            os.chmod(p, 0o755 if keep_exec else 0o644)
 
 
 def _prepare_overlay_stage(src_overlay: Path, stage_root: Path, label: str) -> Path:
