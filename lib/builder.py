@@ -79,6 +79,14 @@ OVERLAY_PERM_ALLOW_EXACT = {
     # "var/tmp",      # もし overlay/var/tmp を使うならここを有効化
 }
 
+# staging 側で executable 扱いにする拡張子
+OVERLAY_EXECUTABLE_SUFFIXES = {
+    ".sh",
+    ".py",
+    ".pl",
+    ".js",
+}
+
 
 # 今回ビルドごとにタイムスタンプ付きログファイルを作成
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -637,6 +645,63 @@ def _verify_overlay_permissions_or_fail(overlay: Path):
     if bad:
         _raise_overlay_perm_error(overlay, bad)
 
+
+def _make_overlay_stage_name(cfg: Path) -> str:
+    """
+    設定レイヤーのパスから、staging 用の安定したディレクトリ名を作る。
+    例: config/20_flavor/gnome -> 20_flavor__gnome
+    """
+    try:
+        rel = cfg.relative_to(CFG_BASE)
+    except ValueError:
+        rel = cfg
+    return "__".join(rel.parts)
+
+
+def _normalize_overlay_permissions(stage: Path):
+    """
+    staging 上の overlay 権限を正規化する。
+    - symlink はそのまま
+    - dir は 0755
+    - file は原則 0644
+    - 元ファイルで user execute が立っているものは 0755 を維持
+    - 加えて .sh / .py / .pl / .js は 0755
+    """
+    if stage.exists():
+        os.chmod(stage, 0o755)
+
+    for p in sorted(stage.rglob("*")):
+        st = p.lstat()
+        mode = st.st_mode
+        perm = stat.S_IMODE(mode)
+
+        if stat.S_ISLNK(mode):
+            continue
+        if stat.S_ISDIR(mode):
+            os.chmod(p, 0o755)
+            continue
+        if stat.S_ISREG(mode):
+            keep_exec = bool(perm & stat.S_IXUSR) or p.suffix in OVERLAY_EXECUTABLE_SUFFIXES
+            os.chmod(p, 0o755 if keep_exec else 0o644)
+
+
+def _prepare_overlay_stage(src_overlay: Path, stage_root: Path, label: str) -> Path:
+    """
+    source overlay を staging にコピーし、権限を build 用に正規化して返す。
+    source 側のファイルは直接変更しない。
+    """
+    stage = stage_root / label
+    if stage.exists():
+        shutil.rmtree(stage)
+    stage.mkdir(parents=True, exist_ok=True)
+
+    if src_overlay.exists():
+        shutil.copytree(src_overlay, stage, symlinks=True, dirs_exist_ok=True)
+
+    _normalize_overlay_permissions(stage)
+    return stage
+
+
 def _get_codename_from_os_release() -> str:
     """common→flavor の順で os-release を探し、VERSION_CODENAME を返す"""
     # 1) os-release ファイルを検索
@@ -873,15 +938,26 @@ deb http://deb.debian.org/debian-security {codename}-security main contrib non-f
 
 def _copy_overlay():
     """
-    各設定レイヤーごとのoverlayファイル群をchrootへ順次コピー。
+    各設定レイヤーごとのoverlayファイル群を staging 経由で chroot へ順次コピー。
+    source overlay は直接変更せず、staging 上で権限を正規化してから適用する。
     sudoers.dの所有権リセットも含め、環境依存トラブルを未然に防ぐ。
     """
+
+    staging_root = WORK / "overlay-staging"
+    if staging_root.exists():
+        shutil.rmtree(staging_root)
+    staging_root.mkdir(parents=True, exist_ok=True)
 
     for cfg in get_configs():
         overlay = cfg / "overlay"
         if overlay.exists():
-            _verify_overlay_permissions_or_fail(overlay)
-            print(f"Applying overlay from {overlay} …")
+            stage = _prepare_overlay_stage(
+                overlay,
+                staging_root,
+                _make_overlay_stage_name(cfg)
+            )
+            _verify_overlay_permissions_or_fail(stage)
+            print(f"Applying overlay from {overlay} via staging {stage} …")
             # rsync -a なら既存のファイル／シンボリックリンクを上書き削除してくれる
             _run([
                 "sudo", "rsync",
@@ -889,7 +965,7 @@ def _copy_overlay():
                 "--keep-dirlinks",         # ディレクトリ向けシンボリックリンクを実ディレクトリとして扱って、その先へコピー
                 "--chown=root:root",       # ★ 追加：コピー先では必ず root:root
                 "--chmod=Du=rwx,Dgo=rx",   # ★ ディレクトリだけは 0755 相当に矯正（Git/umask差で崩れやすい対策）
-                f"{overlay}/",
+                f"{stage}/",
                 str(CHROOT) + "/"
             ])
 
@@ -1215,14 +1291,22 @@ def build_iso():
     for fs in ("dev/pts", "dev", "sys", "proc", "etc/resolv.conf", "var/cache/apt/archives"):
         _run(["sudo", "umount", "-l", str(CHROOT / fs)])
         
-    # Live 環境用に resolv.conf を書き戻す（DNSが空になるのを防ぐ）
+    # 固定の resolv.conf をイメージへ焼き込まない。
+    # chroot 作業中の DNS は _bind_resolv_conf() の bind-mount だけで賄い、
+    # 生成物では resolvconf / NetworkManager に DNS を管理させる。
+    resolv_target = CHROOT / "etc/resolv.conf"
+
+    # bind-mount を外したあとの /etc/resolv.conf を resolvconf 管理へ戻す
+    _run(["sudo", "rm", "-f", str(resolv_target)])
+    _run(["sudo", "mkdir", "-p", str(resolv_target.parent)])
     _run([
-        "sudo", "bash", "-c",
-        f"cat > {CHROOT}/etc/resolv.conf <<'EOF'\n"
-        "nameserver 1.1.1.1\n"
-        "nameserver 8.8.8.8\n"
-        "EOF\n"
+        "sudo", "ln", "-s",
+        "/run/resolvconf/resolv.conf",
+        str(resolv_target)
     ])
+
+    # live 環境で /etc/resolv.conf が欠落しないよう、chroot 内で再生成しておく
+    _run(["sudo", "chroot", str(CHROOT), "resolvconf", "-u"])
 
     # squashfs イメージを作成
     squashfs = live_dir / "filesystem.squashfs"
