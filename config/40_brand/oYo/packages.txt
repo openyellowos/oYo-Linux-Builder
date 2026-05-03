@@ -162,5 +162,5 @@ libkpmcore12
 pm-utils
 
 # ---- 開発用 ----
-dconf-editor
-galternatives
+#dconf-editor
+#galternatives
