@@ -18,6 +18,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as Params from 'resource:///org/gnome/shell/misc/params.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {showScreenshotUI} from 'resource:///org/gnome/shell/ui/screenshot.js';
+import * as ShellEntry from 'resource:///org/gnome/shell/ui/shellEntry.js';
 import * as SystemActions from 'resource:///org/gnome/shell/misc/systemActions.js';
 import * as Util from 'resource:///org/gnome/shell/misc/util.js';
 
@@ -33,7 +34,7 @@ const GDateMenu = Main.panel.statusArea.dateMenu;
 const GWeatherWidget = GDateMenu._weatherItem.constructor;
 const GWorldClocksWidget = GDateMenu._clocksItem.constructor;
 
-const INDICATOR_ICON_SIZE = 18;
+const INDICATOR_ICON_SIZE = 12;
 const USER_AVATAR_SIZE = 28;
 
 const TOOLTIP_SHOW_TIME = 150;
@@ -1268,7 +1269,7 @@ export class ShortcutMenuItem extends BaseMenuItem {
         }
 
         if (!name && this._app)
-            name = this._app.get_name();
+            name = Utils.getAppDisplayName(this._app);
         // -------------------------------------
 
         this.hasContextMenu = !!this._app;
@@ -2292,7 +2293,7 @@ export class PinnedAppsMenuItem extends DraggableMenuItem {
         }
 
         if (this._app && !this._name)
-            this._name = this._app.get_name();
+            this._name = Utils.getAppDisplayName(this._app);
 
         this.label.text = _(this._name);
         this._updateIcon();
@@ -2431,7 +2432,6 @@ export class ApplicationMenuItem extends BaseMenuItem {
         this.metaInfo = metaInfo || {};
         this.isContainedInCategory = isContainedInCategory;
 
-        this.searchType = this._menuLayout.search_display_type;
         this.hasContextMenu = !!this._app;
         this.isSearchResult = !!Object.keys(this.metaInfo).length;
 
@@ -2452,7 +2452,7 @@ export class ApplicationMenuItem extends BaseMenuItem {
         this._updateIcon();
 
         this.label = new St.Label({
-            text: this._app ? this._app.get_name() : this.metaInfo['name'],
+            text: this._app ? Utils.getAppDisplayName(this._app) : this.metaInfo['name'],
             x_expand: true,
             y_expand: true,
             x_align: Clutter.ActorAlign.FILL,
@@ -2912,8 +2912,8 @@ export class SubCategoryMenuItem extends BaseMenuItem {
 
     populateMenu() {
         this.appList.sort((a, b) => {
-            const nameA = a._app.get_name();
-            const nameB = b._app.get_name();
+            const nameA = Utils.getAppDisplayName(a._app);
+            const nameB = Utils.getAppDisplayName(b._app);
             return nameA.localeCompare(nameB);
         });
         this._subMenuPopup.populateMenu(this.appList);
@@ -3348,6 +3348,7 @@ export class SearchEntry extends St.Entry {
             style_class: 'arcmenu-search-entry',
         });
 
+        ShellEntry.addContextMenu(this);
         this.searchResults = menuLayout.searchResults;
         this._menuLayout = menuLayout;
 

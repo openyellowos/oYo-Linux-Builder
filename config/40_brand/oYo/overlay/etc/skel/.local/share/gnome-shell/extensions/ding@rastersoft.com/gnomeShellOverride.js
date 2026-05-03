@@ -34,7 +34,8 @@ var replaceData = {};
 
 export class GnomeShellOverride {
     constructor() {
-        this._isX11 = !Meta.is_wayland_compositor();
+        this._isX11 = Meta.is_wayland_compositor !== undefined &&
+                      !Meta.is_wayland_compositor();
     }
 
     enable() {

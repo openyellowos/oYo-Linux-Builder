@@ -64,12 +64,6 @@ export const IconGridLayout = GObject.registerClass({
             GObject.ParamFlags.READWRITE,
             Clutter.ActorAlign.$gtype,
             Clutter.ActorAlign.FILL),
-        'first-row-align': GObject.ParamSpec.enum('first-row-align',
-            'First row align', 'First row align',
-            GObject.ParamFlags.READWRITE,
-            Clutter.ActorAlign.$gtype,
-            Clutter.ActorAlign.CENTER),
-
     },
 }, class IconGridLayout extends Clutter.LayoutManager {
     _init(params = {}) {
@@ -106,17 +100,7 @@ export const IconGridLayout = GObject.registerClass({
         if (this.halign !== Clutter.ActorAlign.CENTER)
             return 0;
 
-        let columns = 0;
-        if (this.firstRowAlign === Clutter.ActorAlign.CENTER) {
-            const visibleChildren = this._visibleChildren;
-            // if the amount of visiblechildren is less than the amount of columns
-            // set columns to visiblechildren.length in order to center the items
-            columns = visibleChildren.length < this.columns ? visibleChildren.length : this.columns;
-        } else {
-            columns = this.columns;
-        }
-
-        const nColumns = columns;
+        const nColumns = this.columns;
         const usedWidth = childWidth * nColumns;
         const columnSpacing = this.columnSpacing * (nColumns - 1);
 
@@ -467,7 +451,6 @@ class IconGrid extends St.Widget {
             row_spacing: 0,
             force_columns: 0,
             halign: Clutter.ActorAlign.FILL,
-            first_row_align: Clutter.ActorAlign.CENTER,
         });
 
         const layoutManager = new IconGridLayout(layoutParams);

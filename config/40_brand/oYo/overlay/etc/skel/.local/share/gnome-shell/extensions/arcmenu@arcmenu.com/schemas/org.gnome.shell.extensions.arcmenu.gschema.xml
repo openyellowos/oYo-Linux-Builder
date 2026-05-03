@@ -85,6 +85,11 @@
         <value value="0" nick="Pinned_Apps"/>
         <value value="1" nick="Frequent Apps"/>
     </enum>
+    <enum id='org.gnome.shell.extensions.arcmenu.default-menu-view-runner'>
+        <value value="0" nick="Default"/>
+        <value value="1" nick="Pinned_Apps"/>
+        <value value="2" nick="Frequent Apps"/>
+    </enum>
     <enum id='org.gnome.shell.extensions.arcmenu.runner-position'>
         <value value="0" nick="Top"/>
         <value value="1" nick="Centered"/>
@@ -314,6 +319,11 @@
       <default>false</default>
       <summary>Show a larger icon and extra app details</summary>
     </key>
+    <key type="b" name="apps-show-generic-names">
+      <default>false</default>
+      <summary>Show generic application names</summary>
+      <description>Show GenericName instead of Name. Falls back to Name if GenericName is unavailable.</description>
+    </key>
     <key type="b" name="search-hidden">
       <default>false</default>
       <summary>Hide search entry in ArcMenu. Search entry will be hidden when empty.</summary>
@@ -446,10 +456,6 @@
       <default>true</default>
       <summary>Runner layout - show settings button</summary>
     </key>
-    <key type="b" name="runner-show-frequent-apps">
-      <default>false</default>
-      <summary>Runner layout - show frequent apps</summary>
-    </key>
     <key type="i" name="runner-menu-height">
       <default>400</default>
       <summary>Runner layout - menu height</summary>
@@ -469,6 +475,10 @@
     <key enum="org.gnome.shell.extensions.arcmenu.searchbar-location" name="runner-searchbar-location">
       <default>'Top'</default>
       <summary>Searchbar location for runner layout</summary>
+    </key>
+    <key enum="org.gnome.shell.extensions.arcmenu.default-menu-view-runner" name="default-menu-view-runner">
+      <default>'Default'</default>
+      <summary>Set Runner Layout Default View</summary>
     </key>
     <key type="b" name="eleven-show-frequent-apps">
       <default>true</default>

@@ -18,11 +18,13 @@
 /* exported getModifiersInDnD, getDesktopDir, getScriptsDir, getTemplatesDir, clamp,
    spawnCommandLine, launchTerminal, getFilteredEnviron, distanceBetweenPoints, getExtraFolders,
    getMounts, getFileExtensionOffset, getFilesFromNautilusDnD, writeTextFileToDesktop,
-   windowHidePagerTaskbarModal, waitDelayMs */
+   windowHidePagerTaskbarModal, waitDelayMs, createDesktopMenu */
 'use strict';
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const Gdk = imports.gi.Gdk;
+const Gtk = imports.gi.Gtk;
+const GObject = imports.gi.GObject;
 const Prefs = imports.preferences;
 const Enums = imports.enums;
 const Gettext = imports.gettext.domain('ding');
@@ -375,3 +377,32 @@ function waitDelayMs(ms) {
         });
     });
 }
+
+/**
+ * Creates a new desktop menu with desktop menu theming.
+ *
+ * @param {string[]} additionalStyleClasses - Additional style classes to add to
+ *    the menu and its toplevel.
+ * @returns {Gtk.Menu} The created desktop menu.
+ */
+function createDesktopMenu(additionalStyleClasses = []) {
+    return new DesktopMenu({ additionalStyleClasses });
+}
+
+const DesktopMenu = GObject.registerClass(
+    class DesktopMenu extends Gtk.Menu {
+        _init(props = {}) {
+            const { additionalStyleClasses } = props;
+            delete props.additionalStyleClasses;
+            const styleClasses = ['desktopmenu', ...(additionalStyleClasses ?? [])];
+
+            super._init(props);
+
+            styleClasses.forEach(styleClass => {
+                this.get_style_context().add_class(styleClass);
+                this.connect('map', () =>
+                    this.get_toplevel()?.get_style_context().add_class(styleClass));
+            })
+        }
+    }
+);

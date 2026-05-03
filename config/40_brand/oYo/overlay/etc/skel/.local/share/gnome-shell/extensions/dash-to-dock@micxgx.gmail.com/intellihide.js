@@ -62,7 +62,7 @@ export class Intellihide {
         this._topApp = null; // The application whose window is on top on the monitor with the dock.
 
         this._isEnabled = false;
-        this.status = OverlapStatus.UNDEFINED;
+        this._status = OverlapStatus.UNDEFINED;
         this._targetBox = null;
 
         this._checkOverlapTimeoutContinue = false;
@@ -135,14 +135,17 @@ export class Intellihide {
     _addWindowSignals(wa) {
         if (!this._handledWindow(wa))
             return;
-        const signalId = wa.connect('notify::allocation', this._checkOverlap.bind(this));
-        this._trackedWindows.set(wa, signalId);
-        wa.connect('destroy', this._removeWindowSignals.bind(this));
+
+        this._trackedWindows.set(wa, [
+            wa.connect('notify::allocation', () => this._checkOverlap()),
+            wa.connect('destroy', () => this._removeWindowSignals(wa)),
+        ]);
     }
 
     _removeWindowSignals(wa) {
-        if (this._trackedWindows.get(wa)) {
-            wa.disconnect(this._trackedWindows.get(wa));
+        const signalIds = this._trackedWindows.get(wa);
+        if (signalIds) {
+            signalIds.forEach(id => wa.disconnect(id));
             this._trackedWindows.delete(wa);
         }
     }
@@ -224,9 +227,9 @@ export class Intellihide {
                         const rect = win.get_frame_rect();
 
                         const test = (rect.x < this._targetBox.x2) &&
-                                   (rect.x + rect.width > this._targetBox.x1) &&
+                                   (rect.x + rect.width >= this._targetBox.x1) &&
                                    (rect.y < this._targetBox.y2) &&
-                                   (rect.y + rect.height > this._targetBox.y1);
+                                   (rect.y + rect.height >= this._targetBox.y1);
 
                         if (test) {
                             overlaps = OverlapStatus.TRUE;

@@ -124,7 +124,7 @@ class ManageWindow {
         if (this._moveIntoPlaceID) {
             GLib.source_remove(this._moveIntoPlaceID);
         }
-        if (this._keepAtTop) {
+        if (this._keepAtTop && !this.windowUnmanaged) {
             this._window.unmake_above();
         }
         this._window = null;
@@ -264,7 +264,8 @@ export class EmulateX11WindowType {
      "addWindow" method. That's all.
      */
     constructor() {
-        this._isX11 = !Meta.is_wayland_compositor();
+        this._isX11 = Meta.is_wayland_compositor !== undefined &&
+                      !Meta.is_wayland_compositor();
         this._windowList = [];
         this._enableRefresh = true;
         this._waylandClient = null;
@@ -378,6 +379,7 @@ export class EmulateX11WindowType {
         });
         this._windowList.push(window);
         window.customJS_ding.unmanagedID = window.connect('unmanaged', window => {
+            window.customJS_ding.windowUnmanaged = true;
             this._clearWindow(window);
             this._windowList = this._windowList.filter(item => item !== window);
         });

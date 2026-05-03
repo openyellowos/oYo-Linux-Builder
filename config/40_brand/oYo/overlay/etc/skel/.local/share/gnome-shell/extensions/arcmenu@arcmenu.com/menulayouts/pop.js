@@ -312,8 +312,8 @@ export class Layout extends BaseMenuLayout {
                 remainingApps.push(app);
         });
         remainingApps.sort((a, b) => {
-            const nameA = a.get_name();
-            const nameB = b.get_name();
+            const nameA = Utils.getAppDisplayName(a);
+            const nameB = Utils.getAppDisplayName(b);
             return nameA.localeCompare(nameB);
         });
         homeFolderItem.appIds = remainingApps.map(app => app.id);
@@ -691,7 +691,7 @@ class BaseFolderItem extends MW.DraggableMenuItem {
                 parent.remove_child(item);
 
             if (groupAllAppsGridView && this.home_folder) {
-                const appNameFirstChar = item._app.get_name().charAt(0).toLowerCase();
+                const appNameFirstChar = Utils.getAppDisplayName(item._app).charAt(0).toLowerCase();
                 if (currentCharacter !== appNameFirstChar) {
                     currentCharacter = appNameFirstChar;
 
@@ -1074,7 +1074,7 @@ export class ApplicationMenuItem extends MW.DraggableMenuItem {
 
         this._updateIcon();
 
-        this.label.text = this._app.get_name();
+        this.label.text = Utils.getAppDisplayName(this._app);
         this.description = this._app.get_description();
 
         this.add_child(this.label);

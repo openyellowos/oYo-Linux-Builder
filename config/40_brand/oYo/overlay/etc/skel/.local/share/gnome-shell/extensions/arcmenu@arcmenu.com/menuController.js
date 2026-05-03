@@ -18,11 +18,11 @@ export const MenuController = class {
         this.panelInfo = panelInfo;
         this.panel = panelInfo.panel;
         this.monitorIndex = monitorIndex;
-        this.isPrimaryPanel = panelInfo.isPrimaryPanel;
+        this.isFirstPanel = panelInfo.isFirstPanel;
         this._debouncer = new Utils.Debouncer();
 
         // Allow other extensions and DBus command to open/close ArcMenu and Standalone Runner
-        if (!global.toggleArcMenu && this.isPrimaryPanel) {
+        if (!global.toggleArcMenu && this.isFirstPanel) {
             global.toggleArcMenu = () => this._toggleArcMenu();
             this._service = new Utils.DBusService();
             this._service.ToggleArcMenu = () => {
@@ -36,7 +36,7 @@ export const MenuController = class {
 
         this._menuButton = new MenuButton(panelInfo, this.monitorIndex);
 
-        if (this.isPrimaryPanel) {
+        if (this.isFirstPanel) {
             this._keybinder = new Keybinder(ArcMenuManager.settings);
             this._keybinder.toggleArcMenu = () => this._toggleArcMenu();
             this._keybinder.toggleRunnerMenu = () => this._toggleRunnerMenu();
@@ -121,14 +121,14 @@ export const MenuController = class {
                 'power-options', 'show-external-devices', 'show-bookmarks', 'show-user-avatar', 'runner-search-display-style',
                 'avatar-style', 'enable-activities-shortcut', 'enable-horizontal-flip', 'power-display-style',
                 'searchbar-default-bottom-location', 'searchbar-default-top-location', 'multi-lined-labels',
-                'apps-show-extra-details', 'show-search-result-details', 'search-provider-open-windows',
+                'apps-show-extra-details', 'apps-show-generic-names', 'show-search-result-details', 'search-provider-open-windows',
                 'search-provider-recent-files', 'misc-item-icon-size', 'windows-show-pinned-apps',
                 'scrollview-fade-effect', 'windows-show-frequent-apps', 'default-menu-view',
                 'default-menu-view-tognee', 'group-apps-alphabetically-list-layouts', 'group-apps-alphabetically-grid-layouts',
                 'menu-item-grid-icon-size', 'menu-item-icon-size', 'button-item-icon-size', 'quicklinks-item-icon-size',
                 'menu-item-category-icon-size', 'category-icon-type', 'shortcut-icon-type', 'show-category-sub-menus',
                 'arcmenu-extra-categories-links', 'arcmenu-extra-categories-links-location', 'raven-search-display-style',
-                'runner-show-frequent-apps', 'default-menu-view-redmond', 'show-recently-installed-apps', 'az-layout-merge-panels',
+                'default-menu-view-redmond', 'show-recently-installed-apps', 'az-layout-merge-panels',
                 'scrollbars-visible', 'scrollbars-overlay'],
             this._recreateMenuLayout.bind(this),
             this
@@ -155,7 +155,7 @@ export const MenuController = class {
     }
 
     _recreateMenuLayout() {
-        if (!this.isPrimaryPanel)
+        if (!this.isFirstPanel)
             return;
 
         this._debouncer.debounce('createMenuLayout', () => {
@@ -482,7 +482,7 @@ export const MenuController = class {
         else
             this._menuButton.destroy();
 
-        if (this.isPrimaryPanel) {
+        if (this.isFirstPanel) {
             this._keybinder.disconnectObject(this);
             this._keybinder.destroy();
             this._keybinder = null;
@@ -491,6 +491,6 @@ export const MenuController = class {
         this._menuButton = null;
         this.panelInfo = null;
         this.panel = null;
-        this.isPrimaryPanel = null;
+        this.isFirstPanel = null;
     }
 };

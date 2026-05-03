@@ -428,6 +428,31 @@ export function getCategories(info) {
     return categoriesStr.split(';');
 }
 
+/**
+ * Returns the display name for an application.
+ * If 'apps-show-generic-names' is enabled, returns GenericName (falls back to Name).
+ *
+ * @param {Shell.App} app
+ * @returns {*|string}
+ */
+export function getAppDisplayName(app) {
+    if (!app)
+        return '';
+
+    const showGenericNames = ArcMenuManager.settings.get_boolean('apps-show-generic-names');
+
+    if (showGenericNames) {
+        const appInfo = app.get_app_info();
+        if (appInfo) {
+            const genericName = appInfo.get_generic_name();
+            if (genericName && genericName.length > 0)
+                return genericName;
+        }
+    }
+
+    return app.get_name();
+}
+
 export function findBestFolderName(apps) {
     const appInfos = apps.map(app => app.get_app_info());
 

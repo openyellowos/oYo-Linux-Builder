@@ -17,6 +17,7 @@ import {
 } from './dependencies/shell/ui.js';
 
 import {
+    Config,
     Util,
 } from './dependencies/shell/misc.js';
 
@@ -27,10 +28,10 @@ import {
     Utils,
 } from './imports.js';
 
-// module "Dash" does not export DASH_ANIMATION_TIME
+// module "Dash" did not export DASH_ANIMATION_TIME in old versions
 // so we just define it like it is defined in Dash;
 // taken from https://gitlab.gnome.org/GNOME/gnome-shell/-/blob/main/js/ui/dash.js
-const DASH_ANIMATION_TIME = 200;
+const DASH_ANIMATION_TIME = Dash.DASH_ANIMATION_TIME ?? 200;
 const DASH_VISIBILITY_TIMEOUT = 3;
 
 const Labels = Object.freeze({
@@ -120,6 +121,14 @@ export const DockDash = GObject.registerClass({
             'requires-visibility', 'requires-visibility', 'requires-visibility',
             GObject.ParamFlags.READWRITE,
             false),
+        'max-width': GObject.ParamSpec.int(
+            'max-width', 'max-width', 'max-width',
+            GObject.ParamFlags.READWRITE,
+            -1, GLib.MAXINT32, -1),
+        'max-height': GObject.ParamSpec.int(
+            'max-height', 'max-height', 'max-height',
+            GObject.ParamFlags.READWRITE,
+            -1, GLib.MAXINT32, -1),
     },
     Signals: {
         'menu-opened': {},
@@ -516,19 +525,19 @@ export const DockDash = GObject.registerClass({
             });
         }
 
-        appIcon.connect('menu-state-changed', (_, opened) => {
+        appIcon.connectObject('menu-state-changed', (_, opened) => {
             this._itemMenuStateChanged(item, opened);
-        });
+        }, this);
 
         const item = new DockDashItemContainer(this._position);
         item.setChild(appIcon);
 
-        appIcon.connect('notify::hover', a => this._ensureItemVisibility(a));
-        appIcon.connect('clicked', actor => {
+        appIcon.connectObject('notify::hover', a => this._ensureItemVisibility(a), this);
+        appIcon.connectObject('clicked', actor => {
             ensureActorVisibleInScrollView(this._scrollView, actor);
-        });
+        }, this);
 
-        appIcon.connect('key-focus-in', actor => {
+        appIcon.connectObject('key-focus-in', actor => {
             const [xShift, yShift] = ensureActorVisibleInScrollView(this._scrollView, actor);
 
             // This signal is triggered also by mouse click. The popup menu is opened at the original
@@ -537,21 +546,21 @@ export const DockDash = GObject.registerClass({
                 appIcon._menu._boxPointer.xOffset = -xShift;
                 appIcon._menu._boxPointer.yOffset = -yShift;
             }
-        });
+        }, this);
 
-        appIcon.connect('notify::focused', () => {
+        appIcon.connectObject('notify::focused', () => {
             const {settings} = Docking.DockManager;
             if (appIcon.focused && settings.scrollToFocusedApplication)
                 ensureActorVisibleInScrollView(this._scrollView, item);
-        });
+        }, this);
 
-        appIcon.connect('notify::urgent', () => {
+        appIcon.connectObject('notify::urgent', () => {
             if (appIcon.urgent) {
                 ensureActorVisibleInScrollView(this._scrollView, item);
                 if (Docking.DockManager.settings.showDockUrgentNotify)
                     this._requireVisibility();
             }
-        });
+        }, this);
 
         // Override default AppIcon label_actor, now the
         // accessible_name is set at DashItemContainer.setLabelText
@@ -561,8 +570,8 @@ export const DockDash = GObject.registerClass({
         appIcon.icon.setIconSize(this.iconSize);
         this._hookUpLabel(item, appIcon);
 
-        item.connect('notify::position', () => appIcon.updateIconGeometry());
-        item.connect('notify::size', () => appIcon.updateIconGeometry());
+        item.connectObject('notify::position', () => appIcon.updateIconGeometry(), appIcon);
+        item.connectObject('notify::size', () => appIcon.updateIconGeometry(), appIcon);
 
         return item;
     }
@@ -1056,6 +1065,22 @@ export const DockDash = GObject.registerClass({
         this._showAppsIcon.visible = false;
     }
 
+    get maxWidth() {
+        return this._maxWidth;
+    }
+
+    get maxHeight() {
+        return this._maxHeight;
+    }
+
+    set maxWidth(maxWidth) {
+        this.setMaxSize(maxWidth, this._maxHeight);
+    }
+
+    set maxHeight(maxHeight) {
+        this.setMaxSize(this._maxWidth, maxHeight);
+    }
+
     setMaxSize(maxWidth, maxHeight) {
         if (this._maxWidth === maxWidth &&
             this._maxHeight === maxHeight)
@@ -1074,10 +1099,13 @@ export const DockDash = GObject.registerClass({
         const notifiedProperties = [];
         const showAppsContainer = settings.showAppsAlwaysInTheEdge || !settings.dockExtended
             ? this._dashContainer : this._boxContainer;
+        const needsFirstLastChildWorkaround = Config.PACKAGE_VERSION.split('.')[0] < 49;
 
-        this._signalsHandler.addWithLabel(Labels.FIRST_LAST_CHILD_WORKAROUND,
-            showAppsContainer, 'notify',
-            (_obj, pspec) => notifiedProperties.push(pspec.name));
+        if (needsFirstLastChildWorkaround) {
+            this._signalsHandler.addWithLabel(Labels.FIRST_LAST_CHILD_WORKAROUND,
+                showAppsContainer, 'notify',
+                (_obj, pspec) => notifiedProperties.push(pspec.name));
+        }
 
         if (this._showAppsIcon.get_parent() !== showAppsContainer) {
             this._showAppsIcon.get_parent()?.remove_child(this._showAppsIcon);
@@ -1092,16 +1120,18 @@ export const DockDash = GObject.registerClass({
             showAppsContainer.set_child_above_sibling(this._showAppsIcon, null);
         }
 
-        this._signalsHandler.removeWithLabel(Labels.FIRST_LAST_CHILD_WORKAROUND);
+        if (needsFirstLastChildWorkaround) {
+            this._signalsHandler.removeWithLabel(Labels.FIRST_LAST_CHILD_WORKAROUND);
 
-        // This is indeed ugly, but we need to ensure that the last and first
-        // visible widgets are re-computed by St, that is buggy because of a
-        // mutter issue that is being fixed:
-        // https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/2047
-        if (!notifiedProperties.includes('first-child'))
-            showAppsContainer.notify('first-child');
-        if (!notifiedProperties.includes('last-child'))
-            showAppsContainer.notify('last-child');
+            // This is indeed ugly, but we need to ensure that the last and first
+            // visible widgets are re-computed by St, that is buggy because of a
+            // mutter issue that is being fixed:
+            // https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/2047
+            if (!notifiedProperties.includes('first-child'))
+                showAppsContainer.notify('first-child');
+            if (!notifiedProperties.includes('last-child'))
+                showAppsContainer.notify('last-child');
+        }
     }
 });
 

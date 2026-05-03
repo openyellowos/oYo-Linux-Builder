@@ -223,6 +223,10 @@ export default class ArcMenu extends Extension {
 
         const primaryPanelIndex = Main.layoutManager.primaryMonitor?.index;
 
+        // Register hotkeys, DBus methods, and certain settings changed events only once,
+        // on the first panel processed in the loop (independent of primary monitor status).
+        let isFirstPanel = true;
+
         const panelsCount = multiMonitor ? panels.length : Math.min(panels.length, 1);
         for (var i = 0; i < panelsCount; i++) {
             if (!panels[i]) {
@@ -251,8 +255,10 @@ export default class ArcMenu extends Extension {
             else if (panel === Main.panel)
                 monitorIndex = primaryPanelIndex ?? 0;
 
-            const isPrimaryPanel = monitorIndex === primaryPanelIndex;
-            const panelInfo = {panel, panelBox, panelParent, isPrimaryPanel};
+            const panelInfo = {panel, panelBox, panelParent, isFirstPanel};
+
+            if (isFirstPanel)
+                isFirstPanel = false;
 
             const menuController = new MenuController(panelInfo, monitorIndex);
 

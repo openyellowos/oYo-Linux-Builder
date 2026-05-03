@@ -106,8 +106,9 @@ export class VisibleArea {
      */
 
     getMonitorGeometry(ws, monitorIndex) {
-        let geometry = ws.get_display().get_monitor_geometry(monitorIndex);
-        let scale = ws.get_display().get_monitor_scale(monitorIndex);
+        const display = ws.get_display();
+        const geometry = display.get_monitor_geometry(monitorIndex);
+        const scale = display.get_monitor_scale(monitorIndex);
         let area = ws.get_work_area_for_monitor(monitorIndex);
 
         // calculate the margins due to the difference between the monitor geometry and the work area, ie. the work area margins

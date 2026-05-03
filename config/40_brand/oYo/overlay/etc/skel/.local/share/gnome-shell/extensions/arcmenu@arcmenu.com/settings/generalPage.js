@@ -131,7 +131,7 @@ class ArcMenuGeneralPage extends Adw.PreferencesPage {
         const preferTopPanelRow = new Adw.ActionRow({
             title: _('Always Prefer Top Panel'),
             subtitle: _("Useful with Dash to Panel setting 'Keep original gnome-shell top panel'"),
-            activatable_widget: multiMonitorSwitch,
+            activatable_widget: preferTopPanelSwitch,
         });
         preferTopPanelRow.add_suffix(preferTopPanelSwitch);
         // --------------------------------------------------------------------------------------

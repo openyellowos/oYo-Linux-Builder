@@ -59,6 +59,7 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
         this._savedCoordinates = null;
         this._dropCoordinates = null;
         this._destroyed = false;
+        this._relativeX = 0.5;
     }
 
     /** *********************
@@ -160,10 +161,7 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
         this.container.pack_start(this._shieldLabelEventBox, false, false, 0);
 
         this._fullStyleContext = this.container.get_style_context();
-        this._styleContext = this._iconContainer.get_style_context();
-        this._labelStyleContext = this._labelContainer.get_style_context();
-        this._styleContext.add_class('file-item');
-        this._labelStyleContext.add_class('file-item');
+        this._fullStyleContext.add_class('file-item');
 
         this.iconRectangle = new Gdk.Rectangle();
         this.labelRectangle = new Gdk.Rectangle();
@@ -248,9 +246,10 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
         this.labelRectangle.height = this.labelheight;
     }
 
-    setCoordinates(x, y, width, height, margin, grid) {
+    setCoordinates(x, y, width, height, margin, grid, relativeX) {
         this._x1 = x;
         this._y1 = y;
+        this._relativeX = relativeX;
         this.width = width;
         this.height = height;
         this._grid = grid;
@@ -378,9 +377,8 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
      ***********************/
 
     _onEnter(element) {
-        if (!this._styleContext.has_class('file-item-hover')) {
-            this._styleContext.add_class('file-item-hover');
-            this._labelStyleContext.add_class('file-item-hover');
+        if (!this._fullStyleContext.has_class('file-item-hover')) {
+            this._fullStyleContext.add_class('file-item-hover');
         }
         if (Prefs.CLICK_POLICY_SINGLE) {
             let window = element.get_window();
@@ -393,9 +391,8 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
 
     _onLeave(element) {
         this._primaryButtonPressed = false;
-        if (this._styleContext.has_class('file-item-hover')) {
-            this._styleContext.remove_class('file-item-hover');
-            this._labelStyleContext.remove_class('file-item-hover');
+        if (this._fullStyleContext.has_class('file-item-hover')) {
+            this._fullStyleContext.remove_class('file-item-hover');
         }
         if (Prefs.CLICK_POLICY_SINGLE) {
             let window = element.get_window();
@@ -426,9 +423,8 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
             this._grid.receiveMotion(this._x1, this._y1, true);
             return;
         }
-        if (!this._styleContext.has_class('desktop-icons-selected')) {
-            this._styleContext.add_class('desktop-icons-selected');
-            this._labelStyleContext.add_class('desktop-icons-selected');
+        if (!this._fullStyleContext.has_class('desktop-icons-selected')) {
+            this._fullStyleContext.add_class('desktop-icons-selected');
         }
         this._grid.highLightGridAt(this._x1, this._y1);
     }
@@ -438,9 +434,8 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
             this._grid.receiveLeave();
             return;
         }
-        if (!this._isSelected && this._styleContext.has_class('desktop-icons-selected')) {
-            this._styleContext.remove_class('desktop-icons-selected');
-            this._labelStyleContext.remove_class('desktop-icons-selected');
+        if (!this._isSelected && this._fullStyleContext.has_class('desktop-icons-selected')) {
+            this._fullStyleContext.remove_class('desktop-icons-selected');
         }
         this._grid.unHighLightGrids();
     }
@@ -461,23 +456,21 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
     }
 
     _setSelectedStatus() {
-        if (this._isSelected && !this._styleContext.has_class('desktop-icons-selected')) {
-            this._styleContext.add_class('desktop-icons-selected');
-            this._labelStyleContext.add_class('desktop-icons-selected');
+        if (this._isSelected  && !this._fullStyleContext.has_class('desktop-icons-selected')) {
+            this._fullStyleContext.add_class('desktop-icons-selected');
             if (!this._isKeyboardSelected) {
                 this._containerAccessibility.grab_focus();
             }
         }
-        if (!this._isSelected && this._styleContext.has_class('desktop-icons-selected')) {
-            this._styleContext.remove_class('desktop-icons-selected');
-            this._labelStyleContext.remove_class('desktop-icons-selected');
+        if (!this._isSelected && this._fullStyleContext.has_class('desktop-icons-selected')) {
+            this._fullStyleContext.remove_class('desktop-icons-selected');
         }
-        if (this._isKeyboardSelected && !this._fullStyleContext.has_class('desktop-icons-selected')) {
-            this._fullStyleContext.add_class('desktop-icons-selected');
+        if (this._isKeyboardSelected && !this._fullStyleContext.has_class('desktop-icons-keyboard-selected')) {
+            this._fullStyleContext.add_class('desktop-icons-keyboard-selected');
             this._containerAccessibility.grab_focus();
         }
-        if (!this._isKeyboardSelected && this._fullStyleContext.has_class('desktop-icons-selected')) {
-            this._fullStyleContext.remove_class('desktop-icons-selected');
+        if (!this._isKeyboardSelected && this._fullStyleContext.has_class('desktop-icons-keyboard-selected')) {
+            this._fullStyleContext.remove_class('desktop-icons-keyboard-selected');
         }
         this.setAccessibleName(this._getVisibleName());
     }
@@ -809,6 +802,10 @@ var desktopIconItem = class desktopIconItem extends SignalManager.SignalManager 
 
     get dropCoordinates() {
         return this._dropCoordinates;
+    }
+
+    get relativeX() {
+        return this._relativeX;
     }
 
     set dropCoordinates(pos) {

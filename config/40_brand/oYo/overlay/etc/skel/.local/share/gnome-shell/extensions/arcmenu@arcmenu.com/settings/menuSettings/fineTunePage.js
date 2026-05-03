@@ -32,6 +32,9 @@ class ArcMenuFineTunePage extends SubPage {
         const appDescriptionsRow = createSwitchRow('apps-show-extra-details', _('Show Application Descriptions'));
         miscGroup.add(appDescriptionsRow);
 
+        const genericNamesRow = createSwitchRow('apps-show-generic-names', _('Show Generic Application Names'));
+        miscGroup.add(genericNamesRow);
+
         const hiddenFilesRow = createSwitchRow('show-hidden-recent-files', _('Show Hidden Recent Files'));
         miscGroup.add(hiddenFilesRow);
 

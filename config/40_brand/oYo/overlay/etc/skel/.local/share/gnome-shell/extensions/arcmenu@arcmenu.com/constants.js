@@ -70,24 +70,9 @@ export const SettingsPage = {
     WHATS_NEW: 16,
 };
 
-export const DefaultMenuViewAz = {
-    PINNED_APPS: 0,
-    FREQUENT_APPS: 1,
-};
-
-export const DefaultMenuViewTognee = {
-    CATEGORIES_LIST: 0,
-    ALL_PROGRAMS: 1,
-};
-
 export const AllAppsButtonAction = {
     CATEGORIES_LIST: 0,
     ALL_PROGRAMS: 1,
-};
-
-export const DefaultMenuViewRedmond = {
-    ALL_PROGRAMS: 0,
-    PINNED_APPS: 1,
 };
 
 export const SoftwareManagerIDs = ['org.manjaro.pamac.manager.desktop', 'pamac-manager.desktop',

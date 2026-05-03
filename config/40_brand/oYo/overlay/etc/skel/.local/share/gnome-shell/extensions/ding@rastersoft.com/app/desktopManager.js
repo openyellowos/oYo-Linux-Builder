@@ -18,13 +18,11 @@
 /* exported DesktopManager */
 'use strict';
 const GLib = imports.gi.GLib;
-var GLibUnix = null;
-try {
-    GLibUnix = imports.gi.GLibUnix;
-} catch(e) {}
+const GLibUnix = imports.gi.GLibUnix;
 const Gtk = imports.gi.Gtk;
 const Gdk = imports.gi.Gdk;
 const Gio = imports.gi.Gio;
+const GioUnix = imports.gi.GioUnix;
 const ByteArray = imports.byteArray;
 
 const FileItem = imports.fileItem;
@@ -76,17 +74,6 @@ var DesktopManager = class {
         }
         this._selectedFiles = null;
         this._popupCounter = 0;
-
-        this._premultiplied = false;
-        try {
-            for (let f of Prefs.mutterSettings.get_strv('experimental-features')) {
-                if (f == 'scale-monitor-framebuffer') {
-                    this._premultiplied = true;
-                    break;
-                }
-            }
-        } catch (e) {
-        }
 
         this.dbusManager = dbusManager;
         this.autoAr = new AutoAr.AutoAr(this);
@@ -267,27 +254,23 @@ var DesktopManager = class {
         }
         this._pendingDropFiles = {};
         if (this._asDesktop) {
-            if (!GLibUnix) {
-                this.dbusManager.doNotify(_('GLibUnix GIR file not found'),
-                                          _('GLibUnix-2.0.gir file is missing. Please, install the required package in your system.'));
-            } else {
-                this._sigtermID = GLibUnix.signal_add_full(GLib.PRIORITY_DEFAULT, 15, () => {
-                    GLib.source_remove(this._sigtermID);
-                    for (let desktop of this._desktops) {
-                        desktop.destroy();
-                    }
-                    this._desktops = [];
-                    this._forcedExit = true;
-                    if (this._desktopEnumerateCancellable) {
-                        this._desktopEnumerateCancellable.cancel();
-                    }
-                    if (this._hold_active) {
-                        this.mainApp.release();
-                        this._hold_active = false;
-                    }
-                    return false;
-                });
-            }
+            const signalAdd = GLibUnix.signal_add ?? GLibUnix.signal_add_full;
+            this._sigtermID = signalAdd(GLib.PRIORITY_DEFAULT, 15, () => {
+                GLib.source_remove(this._sigtermID);
+                for (let desktop of this._desktops) {
+                    desktop.destroy();
+                }
+                this._desktops = [];
+                this._forcedExit = true;
+                if (this._desktopEnumerateCancellable) {
+                    this._desktopEnumerateCancellable.cancel();
+                }
+                if (this._hold_active) {
+                    this.mainApp.release();
+                    this._hold_active = false;
+                }
+                return false;
+            });
         }
         if (this._asDesktop) {
             this._dbusAdvertiseUpdate();
@@ -361,7 +344,7 @@ var DesktopManager = class {
                 (area.y != area2.y) ||
                 (area.width != area2.width) ||
                 (area.height != area2.height) ||
-                (area.zoom != area2.zoom) ||
+                (area.scaleFactor !== area2.scaleFactor) ||
                 (area.monitorIndex != area2.monitorIndex)) {
                 monitorschanged.push(index);
                 gridschanged.push(index);
@@ -410,7 +393,7 @@ var DesktopManager = class {
             } else {
                 desktopName = `DING ${desktop.monitorIndex + 1}`;
             }
-            this._desktops.push(new DesktopGrid.DesktopGrid(this, desktopName, desktop, this._asDesktop, this._premultiplied));
+            this._desktops.push(new DesktopGrid.DesktopGrid(this, desktopName, desktop, this._asDesktop));
         }
     }
 
@@ -432,7 +415,12 @@ var DesktopManager = class {
     _setSelectionColor() {
         this.selectColor = this._styleContext.get_background_color(Gtk.StateFlags.SELECTED);
         let style = `.desktop-icons-selected {
-            background-color: rgba(${this.selectColor.red * 255},${this.selectColor.green * 255}, ${this.selectColor.blue * 255}, 0.6);
+            background-color: rgba(${this.selectColor.red * 255},${this.selectColor.green * 255}, ${this.selectColor.blue * 255}, 0.5);
+            border-color: rgba(${this.selectColor.red * 255},${this.selectColor.green * 255}, ${this.selectColor.blue * 255}, 0);
+        }
+        .desktop-icons-keyboard-selected:not(:backdrop) {
+            background-color: rgba(${this.selectColor.red * 255},${this.selectColor.green * 255}, ${this.selectColor.blue * 255}, 0.5);
+            border-color: rgba(${this.selectColor.red * 255},${this.selectColor.green * 255}, ${this.selectColor.blue * 255}, 0.8);
         }`;
         this._cssProviderSelection.load_from_data(style);
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), this._cssProviderSelection, 600);
@@ -937,7 +925,7 @@ var DesktopManager = class {
         return false;
     }
 
-    onKeyPress(event, grid) {
+    onKeyPress(window, event, grid) {
         if (this._popupCounter != 0) {
             return false;
         }
@@ -1013,7 +1001,7 @@ var DesktopManager = class {
             Prefs.gtkSettings.set_boolean('show-hidden', !this._showHidden);
             return true;
         } else if (isCtrl && ((symbol == Gdk.KEY_F) || (symbol == Gdk.KEY_f))) {
-            this.findFiles();
+            this.findFiles(window);
             return true;
         } else if (symbol == Gdk.KEY_Escape) {
             this.unselectAll();
@@ -1031,6 +1019,12 @@ var DesktopManager = class {
                 this._prepareMenu();
                 this._menu.popup_at_pointer(event);
             }
+            return true;
+        } else if (isCtrl && (symbol == Gdk.KEY_plus)) {
+            Prefs.increase_icon_size();
+            return true;
+        } else if (isCtrl && (symbol == Gdk.KEY_minus)) {
+            Prefs.decrease_icon_size();
             return true;
         } else {
             if (this.ignoreKeys.includes(symbol)) {
@@ -1053,21 +1047,8 @@ var DesktopManager = class {
                         windowError.timeoutClose(2000);
                         return true;
                     }
-                    this.searchEventTime = GLib.get_monotonic_time();
-                    if (!this.keypressTimeoutID) {
-                        this.keypressTimeoutID = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
-                            if (GLib.get_monotonic_time() - this.searchEventTime < 1500000) {
-                                return true;
-                            }
-                            this.searchString = null;
-                            this.keypressTimeoutID = null;
-                            if (this._findFileWindow) {
-                                this._findFileWindow.response(Gtk.ResponseType.OK);
-                            }
-                            return false;
-                        });
-                    }
-                    this.findFiles(this.searchString);
+                    this._refreshSearchTimeout();
+                    this.findFiles(window, this.searchString);
                 }
             }
             return true;
@@ -1082,8 +1063,41 @@ var DesktopManager = class {
         });
     }
 
-    findFiles(text) {
+    _refreshSearchTimeout() {
+        if (this.keypressTimeoutID) {
+            GLib.source_remove(this.keypressTimeoutID);
+            this.keypressTimeoutID = null;
+        }
+        if (Prefs.a11YKeyboard) {
+            // if the user has enabled any keyboard assistive technology,
+            // disable the timeout to hide the search window
+            if (Prefs.a11YKeyboard.get_boolean('stickykeys-enable') ||
+                Prefs.a11YKeyboard.get_boolean('slowkeys-enable') ||
+                Prefs.a11YKeyboard.get_boolean('bouncekeys-enable') ||
+                Prefs.a11YKeyboard.get_boolean('mousekeys-enable')) {
+                    return;
+            }
+        }
+        if (Prefs.a11YApplications) {
+            // if the user has enabled the screen reader,
+            // disable the timeout to hide the search window
+            if (Prefs.a11YApplications.get_boolean('screen-reader-enabled')) {
+                return;
+            }
+        }
+
+        this.keypressTimeoutID = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1500, () => {
+            this.searchString = null;
+            this.keypressTimeoutID = null;
+            if (this._findFileWindow) {
+                this._findFileWindow.response(Gtk.ResponseType.OK);
+            }
+            return false;
+        });
+    }
+    findFiles(window, text) {
         this._findFileWindow = new Gtk.Dialog({
+            transientFor: window,
             use_header_bar: true,
             window_position: Gtk.WindowPosition.CENTER_ON_PARENT,
             resizable: false,
@@ -1118,7 +1132,7 @@ var DesktopManager = class {
                     context.add_class('not-found');
                 }
             }
-            this.searchEventTime = GLib.get_monotonic_time();
+            this._refreshSearchTimeout();
         });
         this._findFileTextArea.grab_focus_without_selecting();
         if (text) {
@@ -1158,8 +1172,7 @@ var DesktopManager = class {
     }
 
     _createDesktopBackgroundMenu() {
-        this._menu = new Gtk.Menu();
-        this._menu.get_style_context().add_class('desktopmenu');
+        this._menu = DesktopIconsUtil.createDesktopMenu();
         let newFolder = new Gtk.MenuItem({label: _('New Folder')});
         newFolder.connect('activate', () => this.doNewFolder());
         this._menu.add(newFolder);
@@ -1203,7 +1216,7 @@ var DesktopManager = class {
 
         this._changeBackgroundMenuItem = new Gtk.MenuItem({label: _('Change Background…')});
         this._changeBackgroundMenuItem.connect('activate', () => {
-            const desktopFile = Gio.DesktopAppInfo.new('gnome-background-panel.desktop');
+            const desktopFile = GioUnix.DesktopAppInfo.new('gnome-background-panel.desktop');
             const context = Gdk.Display.get_default().get_app_launch_context();
             context.set_timestamp(Gtk.get_current_event_time());
             desktopFile.launch([], context);
@@ -1215,7 +1228,7 @@ var DesktopManager = class {
         this._settingsMenuItem = new Gtk.MenuItem({label: _('Desktop Icons Settings')});
         if (GLib.getenv('XDG_CURRENT_DESKTOP').split(':').includes('ubuntu')) {
             this._settingsMenuItem.connect("activate", () => {
-                const desktopFile = Gio.DesktopAppInfo.new('gnome-ubuntu-panel.desktop');
+                const desktopFile = GioUnix.DesktopAppInfo.new('gnome-ubuntu-panel.desktop');
                 const context = Gdk.Display.get_default().get_app_launch_context();
                 context.set_timestamp(Gtk.get_current_event_time());
                 desktopFile.launch([], context);
@@ -1227,7 +1240,7 @@ var DesktopManager = class {
 
         this._displaySettingsMenuItem = new Gtk.MenuItem({label: _('Display Settings')});
         this._displaySettingsMenuItem.connect('activate', () => {
-            const desktopFile = Gio.DesktopAppInfo.new('gnome-display-panel.desktop');
+            const desktopFile = GioUnix.DesktopAppInfo.new('gnome-display-panel.desktop');
             const context = Gdk.Display.get_default().get_app_launch_context();
             context.set_timestamp(Gtk.get_current_event_time());
             desktopFile.launch([], context);
@@ -1941,7 +1954,7 @@ var DesktopManager = class {
     }
 
     _addSortingSubMenu() {
-        this._arrangeSubMenu = new Gtk.Menu();
+        this._arrangeSubMenu = DesktopIconsUtil.createDesktopMenu();
         this._ArrangeByMenuItem.set_submenu(this._arrangeSubMenu);
 
         this._keepArrangedMenuItem = new Gtk.CheckMenuItem({label: _('Keep Arranged...')});

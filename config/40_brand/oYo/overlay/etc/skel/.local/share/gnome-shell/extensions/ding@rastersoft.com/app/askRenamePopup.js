@@ -39,6 +39,7 @@ var AskRenamePopup = class extends SignalManager.SignalManager {
         this._popover = new Gtk.Popover({
             relative_to: fileItem._iconContainer,
             modal: true,
+            position: (fileItem.relativeX > 0.5) ? Gtk.PositionType.LEFT : Gtk.PositionType.RIGHT,
         });
         let contentBox = new Gtk.Grid({
             row_spacing: 6,

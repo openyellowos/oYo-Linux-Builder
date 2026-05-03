@@ -133,10 +133,7 @@ var FileItemMenu = class {
             this._menu.destroy();
         }
 
-        this._menu = new Gtk.Menu();
-        const menuStyleContext = this._menu.get_style_context();
-        menuStyleContext.add_class('desktopmenu');
-        menuStyleContext.add_class('fileitemmenu');
+        this._menu = DesktopIconsUtil.createDesktopMenu(['fileitemmenu']);
 
         if (!fileItem.isStackMarker) {
             this._addElementToMenu(
@@ -415,8 +412,9 @@ var FileItemMenu = class {
             if (fileItems[0].isDirectory) {
                 mimetype = 'inode/directory';
             }
-            let chooser = Gtk.AppChooserDialog.new_for_content_type(null,
-                Gtk.DialogFlags.MODAL + Gtk.DialogFlags.USE_HEADER_BAR,
+            const chooser = Gtk.AppChooserDialog.new_for_content_type(
+                this._currentFileItem.container.get_toplevel(),
+                Gtk.DialogFlags.MODAL | Gtk.DialogFlags.USE_HEADER_BAR,
                 mimetype);
             let signals = new SignalManager.SignalManager();
             chooser.show_all();
@@ -467,7 +465,11 @@ var FileItemMenu = class {
             return;
         }
 
-        const dialog = new Gtk.FileChooserDialog({title: _('Select Extract Destination')});
+        const dialog = new Gtk.FileChooserDialog({
+            title: _('Select Extract Destination'),
+            modal: true,
+            transientFor: this._currentFileItem.container.get_toplevel(),
+        });
         dialog.set_action(Gtk.FileChooserAction.SELECT_FOLDER);
         dialog.set_create_folders(true);
         dialog.set_current_folder_uri(DesktopIconsUtil.getDesktopDir().get_uri());
@@ -537,7 +539,9 @@ var FileItemMenu = class {
                 DBusUtils.RemoteFileOperations.CompressRemote(toCompress, desktopFolder.get_uri(), true);
             } else {
                 const toCompress = this._desktopManager.getCurrentSelection(false);
-                this._desktopManager.autoAr.compressFileItems(toCompress, desktopFolder.get_path());
+                this._desktopManager.autoAr.compressFileItems(toCompress,
+                    desktopFolder.get_path(),
+                    this._currentFileItem.container.get_toplevel());
             }
         }
         this._desktopManager.unselectAll();

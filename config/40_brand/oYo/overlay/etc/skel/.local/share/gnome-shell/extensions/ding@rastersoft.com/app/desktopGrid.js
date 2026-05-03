@@ -33,13 +33,12 @@ const _ = Gettext.gettext;
 var elementSpacing = 2;
 
 var DesktopGrid = class extends SignalManager.SignalManager{
-    constructor(desktopManager, desktopName, desktopDescription, asDesktop, premultiplied) {
+    constructor(desktopManager, desktopName, desktopDescription, asDesktop) {
         super();
         this._signalIds = [];
         this._destroying = false;
         this._desktopManager = desktopManager;
         this._desktopName = desktopName;
-        this._premultiplied = premultiplied;
         this._asDesktop = asDesktop;
         this._desktopDescription = desktopDescription;
         this.updateWindowGeometry();
@@ -101,7 +100,9 @@ var DesktopGrid = class extends SignalManager.SignalManager{
         });
 
         this.setGridStatus();
-
+        this._window.set_default_size(this._windowWidth, this._windowHeight);
+        this._window.set_size_request(this._windowWidth, this._windowHeight);
+        this._window.resize(this._windowWidth, this._windowHeight);
         this._window.show_all();
         this._window.set_size_request(this._windowWidth, this._windowHeight);
         this._window.resize(this._windowWidth, this._windowHeight);
@@ -125,8 +126,8 @@ var DesktopGrid = class extends SignalManager.SignalManager{
             this._desktopManager.onReleaseButton(this);
         });
 
-        this.connectSignal(this._window, 'key-press-event', (actor, event) => {
-            this._desktopManager.onKeyPress(event, this);
+        this.connectSignal(this._window, 'key-press-event', (window, event) => {
+            this._desktopManager.onKeyPress(window, event, this);
         });
         // key-release-event must be used for the arrow keys to avoid conflicts
         // with assistive technologies.
@@ -141,17 +142,13 @@ var DesktopGrid = class extends SignalManager.SignalManager{
     }
 
     updateWindowGeometry() {
-        this._zoom = this._desktopDescription.zoom;
+        this._zoom = this._desktopDescription.scaleFactor;
         this._x = this._desktopDescription.x;
         this._y = this._desktopDescription.y;
         this._monitor = this._desktopDescription.monitorIndex;
         this._size_divisor = this._zoom;
-        if (this._asDesktop) {
-            if (this._desktopManager.using_X11) {
-                this._size_divisor = Math.ceil(this._zoom);
-            } else if (this._premultiplied) {
-                this._size_divisor = 1;
-            }
+        if (this._asDesktop && this._desktopManager.using_X11) {
+            this._size_divisor = this._zoom;
         }
         this._windowWidth = Math.floor(this._desktopDescription.width / this._size_divisor);
         this._windowHeight = Math.floor(this._desktopDescription.height / this._size_divisor);
@@ -362,6 +359,19 @@ var DesktopGrid = class extends SignalManager.SignalManager{
         this._window.queue_draw();
     }
 
+    _roundedRectangle(cr, x, y, width, height, radius) {
+        radius = Math.min(radius, Math.abs(width) / 2, Math.abs(height) / 2);
+        const right = x + width;
+        const bottom = y + height;
+
+        cr.newPath();
+        cr.arc(x + radius, y + radius, radius, Math.PI, 1.5 * Math.PI);
+        cr.arc(right - radius, y + radius, radius, 1.5 * Math.PI, 2 * Math.PI);
+        cr.arc(right - radius, bottom - radius, radius, 0, 0.5 * Math.PI);
+        cr.arc(x + radius, bottom - radius, radius, 0.5 * Math.PI, Math.PI);
+        cr.closePath();
+    }
+
     _doDrawRubberBand(cr) {
         if (this._desktopManager.rubberBand && this._desktopManager.selectionRectangle) {
             if (!this.gridGlobalRectangle.intersect(this._desktopManager.selectionRectangle)[0]) {
@@ -370,35 +380,35 @@ var DesktopGrid = class extends SignalManager.SignalManager{
             let [xInit, yInit] = this.coordinatesGlobalToLocal(this._desktopManager.x1, this._desktopManager.y1);
             let [xFin, yFin] = this.coordinatesGlobalToLocal(this._desktopManager.x2, this._desktopManager.y2);
 
-            cr.rectangle(xInit + 0.5, yInit + 0.5, xFin - xInit, yFin - yInit);
+            this._roundedRectangle(cr, xInit + 0.5, yInit + 0.5, xFin - xInit, yFin - yInit, 5);
             Gdk.cairo_set_source_rgba(cr, new Gdk.RGBA({
                 red: this._desktopManager.selectColor.red,
                 green: this._desktopManager.selectColor.green,
                 blue: this._desktopManager.selectColor.blue,
-                alpha: 0.6,
+                alpha: 0.2,
             })
             );
             cr.fill();
             cr.setLineWidth(1);
-            cr.rectangle(xInit + 0.5, yInit + 0.5, xFin - xInit, yFin - yInit);
+            this._roundedRectangle(cr, xInit + 0.5, yInit + 0.5, xFin - xInit, yFin - yInit, 5);
             Gdk.cairo_set_source_rgba(cr, new Gdk.RGBA({
                 red: this._desktopManager.selectColor.red,
                 green: this._desktopManager.selectColor.green,
                 blue: this._desktopManager.selectColor.blue,
-                alpha: 1.0,
+                alpha: 0.8,
             })
             );
             cr.stroke();
         }
         if (this._desktopManager.showDropPlace && (this._selectedList !== null)) {
             for (let [x, y] of this._selectedList) {
-                cr.rectangle(x + 0.5, y + 0.5, this._elementWidth, this._elementHeight);
+                this._roundedRectangle(cr, x + 0.5, y + 0.5, this._elementWidth, this._elementHeight, 10);
                 let color = this._desktopManager.selectColor;
                 color.alpha = 0.4;
                 Gdk.cairo_set_source_rgba(cr, color);
                 cr.fill();
                 cr.setLineWidth(0.5);
-                cr.rectangle(x + 0.5, y + 0.5, this._elementWidth, this._elementHeight);
+                this._roundedRectangle(cr, x + 0.5, y + 0.5, this._elementWidth, this._elementHeight, 10);
                 color.alpha = 1.0;
                 Gdk.cairo_set_source_rgba(cr, color);
                 cr.stroke();
@@ -464,7 +474,8 @@ var DesktopGrid = class extends SignalManager.SignalManager{
             this._elementWidth - 2 * elementSpacing,
             this._elementHeight - 2 * elementSpacing,
             elementSpacing,
-            this);
+            this,
+            column / this._maxColumns);
         /* If this file is new in the Desktop and hasn't yet
          * fixed coordinates, store the new possition to ensure
          * that the next time it will be shown in the same possition.

@@ -16,39 +16,25 @@ import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js'
 
 const Spacing = 6;
 
+export const MenuView = {
+    DEFAULT: 0,
+    PINNED_APPS: 1,
+    FREQUENT_APPS: 2,
+};
+
 export class Layout extends BaseMenuLayout {
     static {
         GObject.registerClass(this);
     }
 
     constructor(menuButton, isStandalone) {
-        let displayType, searchDisplayType, columnSpacing, rowSpacing, defaultMenuWidth, iconGridSize;
-        const searchDisplayStyle = ArcMenuManager.settings.get_enum('runner-search-display-style');
-
-        if (searchDisplayStyle === Constants.DisplayType.LIST) {
-            displayType = Constants.DisplayType.LIST;
-            searchDisplayType = Constants.DisplayType.LIST;
-            columnSpacing = 0;
-            rowSpacing = 0;
-            defaultMenuWidth = null;
-            iconGridSize = null;
-        } else {
-            displayType = Constants.DisplayType.GRID;
-            searchDisplayType = Constants.DisplayType.GRID;
-            columnSpacing = 15;
-            rowSpacing = 15;
-            defaultMenuWidth = ArcMenuManager.settings.get_int('runner-menu-width');
-            iconGridSize = Constants.GridIconSize.LARGE;
-        }
-
         super(menuButton, {
-            display_type: displayType,
-            search_display_type: searchDisplayType,
-            column_spacing: columnSpacing,
-            row_spacing: rowSpacing,
+            display_type: Constants.DisplayType.LIST,
+            search_display_type: Constants.DisplayType.LIST,
+            column_spacing: 0,
+            row_spacing: 0,
             ...getOrientationProp(true),
-            default_menu_width: defaultMenuWidth,
-            icon_grid_size: iconGridSize,
+            icon_grid_size: Constants.GridIconSize.MEDIUM_RECT,
             category_icon_size: Constants.MEDIUM_ICON_SIZE,
             apps_icon_size: Constants.EXTRA_SMALL_ICON_SIZE,
             quicklinks_icon_size: Constants.EXTRA_SMALL_ICON_SIZE,
@@ -107,11 +93,34 @@ export class Layout extends BaseMenuLayout {
 
         ArcMenuManager.settings.connectObject('changed::runner-searchbar-location', () => this._setSearchbarLocation(), this);
         ArcMenuManager.settings.connectObject('changed::runner-menu-height-static', () => this.updateLocation(), this);
+        ArcMenuManager.settings.connectObject('changed::runner-search-display-style', () => this._updateSearchDisplayStyle(), this);
         this._setSearchbarLocation();
 
+        this._updateSearchDisplayStyle();
+        this.loadCategories();
+        this.loadPinnedApps();
         this.setDefaultMenuView();
         this.updateWidth();
         this._connectAppChangedEvents();
+    }
+
+    _updateSearchDisplayStyle() {
+        const searchDisplayStyle = ArcMenuManager.settings.get_enum('runner-search-display-style');
+
+        let columnSpacing, rowSpacing;
+        if (searchDisplayStyle === Constants.DisplayType.LIST) {
+            columnSpacing = 0;
+            rowSpacing = 0;
+        } else {
+            columnSpacing = 15;
+            rowSpacing = 15;
+        }
+
+        this.set({
+            search_display_type: searchDisplayStyle,
+            column_spacing: columnSpacing,
+            row_spacing: rowSpacing,
+        });
     }
 
     _setSearchbarLocation() {
@@ -144,10 +153,31 @@ export class Layout extends BaseMenuLayout {
     setDefaultMenuView() {
         this.activeMenuItem = null;
         super.setDefaultMenuView();
-        const showFrequentApps = ArcMenuManager.settings.get_boolean('runner-show-frequent-apps');
-        this.applicationsScrollBox.visible = showFrequentApps;
-        if (showFrequentApps)
+        const defaultView = ArcMenuManager.settings.get_enum('default-menu-view-runner');
+
+        switch (defaultView) {
+        case MenuView.PINNED_APPS:
+            this.applicationsScrollBox.visible = true;
+            this.displayPinnedApps();
+            break;
+        case MenuView.FREQUENT_APPS:
+            this.applicationsScrollBox.visible = true;
             this.displayFrequentApps();
+            break;
+        case MenuView.DEFAULT:
+        default:
+            this.applicationsScrollBox.visible = false;
+            break;
+        }
+    }
+
+    displayPinnedApps() {
+        const labelRow = this.createLabelRow(_('Pinned Apps'));
+        labelRow.style = `padding-bottom: ${Spacing}px;`;
+
+        super.displayPinnedApps();
+
+        this.applicationsBox.insert_child_at_index(labelRow, 0);
     }
 
     displayFrequentApps() {
@@ -234,11 +264,11 @@ export class Layout extends BaseMenuLayout {
         this.updateWidth();
     }
 
-    loadPinnedApps() {
-
-    }
-
     loadCategories() {
+        this.categoryDirectories = null;
+        this.categoryDirectories = new Map();
+        this.hasPinnedApps = true;
+        super.loadCategories();
     }
 
     _onDestroy() {

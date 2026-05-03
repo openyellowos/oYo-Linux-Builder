@@ -33,6 +33,11 @@ import * as GnomeShellOverride from './gnomeShellOverride.js';
 const Clipboard = St.Clipboard.get_default();
 const CLIPBOARD_TYPE = St.ClipboardType.CLIPBOARD;
 
+function is_wayland_compositor() {
+    return Meta.is_wayland_compositor === undefined ||
+           Meta.is_wayland_compositor();
+}
+
 export default class DING extends Extension {
     constructor(metadata) {
         super(metadata);
@@ -130,6 +135,10 @@ export default class DING extends Extension {
         }
         this.data.actionGroup = undefined;
 
+        if (this.data.scaleFactorId) {
+            St.ThemeContext.get_for_stage(global.stage).disconnect(this.data.scaleFactorId);
+            this.data.scaleFactorId = 0;
+        }
         if (this.data.visibleAreaId) {
             this.data.visibleArea.disconnect(this.data.visibleAreaId);
             this.data.visibleAreaId = 0;
@@ -168,7 +177,7 @@ export default class DING extends Extension {
         this.data.GnomeShellOverride.enable();
 
         // under X11 we don't need to cheat, so only do all this under wayland
-        if (Meta.is_wayland_compositor()) {
+        if (is_wayland_compositor()) {
             this.data.x11Manager.enable();
         } else {
             this.data.switchWorkspaceId = global.window_manager.connect('switch-workspace', () => {
@@ -197,6 +206,12 @@ export default class DING extends Extension {
         * This callback allows to detect a change in the working area (like when changing the Scale value)
         */
         this.data.visibleAreaId = this.data.visibleArea.connect('updated-usable-area', () => this.updateDesktopGeometry());
+
+        /*
+         * This callback allows to detect a change in the scale factor, to adapt the desktop geometry to it.
+         */
+        this.data.scaleFactorId = St.ThemeContext.get_for_stage(global.stage).connect('notify::scale-factor',
+            () => this.updateDesktopGeometry());
 
         this.data.isEnabled = true;
         if (this.data.launchDesktopId) {
@@ -328,7 +343,8 @@ export default class DING extends Extension {
     getDesktopGeometry() {
         let desktopVariantList = [];
         let desktopList = [];
-        let ws = global.workspace_manager.get_workspace_by_index(0);
+        const ws = global.workspace_manager.get_active_workspace();
+        const { scaleFactor } = St.ThemeContext.get_for_stage(global.stage);
         for (let monitorIndex = 0; monitorIndex < Main.layoutManager.monitors.length; monitorIndex++) {
             let area = this.data.visibleArea.getMonitorGeometry(ws, monitorIndex);
             let monitorData = {
@@ -336,7 +352,7 @@ export default class DING extends Extension {
                 'y': area.y,
                 'width': area.width,
                 'height': area.height,
-                'zoom': area.scale,
+                'scaleFactor': scaleFactor,
                 'marginTop': area.marginTop,
                 'marginBottom': area.marginBottom,
                 'marginLeft': area.marginLeft,
@@ -491,7 +507,7 @@ class LaunchSubprocess {
 
     spawnv(argv) {
         try {
-            if (Meta.is_wayland_compositor()) {
+            if (is_wayland_compositor()) {
                 if (Meta.WaylandClient.new_subprocess) {
                     // New API introduced in https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/4491
                     this._waylandClient = Meta.WaylandClient.new_subprocess (global.context, this._launcher, argv);
@@ -539,7 +555,7 @@ class LaunchSubprocess {
                 }
             });
             this.process_running = true;
-            if (Meta.is_wayland_compositor() && (Main.layoutManager.monitors.length != 0)) {
+            if (is_wayland_compositor() && (Main.layoutManager.monitors.length != 0)) {
                 // This ensures that, if the DING window isn't detected in three seconds
                 // after launch, the desktop will be killed and, thus, relaunched again.
                 this._waiting_for_windows = Main.layoutManager.monitors.length;
@@ -592,7 +608,7 @@ class LaunchSubprocess {
      * @param {MetaWindow} window The window to check.
      */
     query_window_belongs_to(window) {
-        if (!Meta.is_wayland_compositor()) {
+        if (!is_wayland_compositor()) {
             return false;
         }
         if (!this.process_running) {
@@ -616,7 +632,7 @@ class LaunchSubprocess {
     }
 
     show_in_window_list(window) {
-        if (Meta.is_wayland_compositor() && this.process_running) {
+        if (is_wayland_compositor() && this.process_running) {
             if (window.show_in_window_list) {
                 window.show_in_window_list();
             } else {
@@ -626,7 +642,7 @@ class LaunchSubprocess {
     }
 
     hide_from_window_list(window) {
-        if (Meta.is_wayland_compositor() && this.process_running) {
+        if (is_wayland_compositor() && this.process_running) {
             if (window.hide_from_window_list) {
                 window.hide_from_window_list();
             } else {

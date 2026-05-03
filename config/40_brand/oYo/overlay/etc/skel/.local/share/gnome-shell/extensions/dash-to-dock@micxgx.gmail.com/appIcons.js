@@ -72,6 +72,9 @@ const scrollAction = Object.freeze({
     SWITCH_WORKSPACE: 2,
 });
 
+// module "Dash" did not export DASH_ITEM_LABEL_SHOW_TIME, so let's define it.
+const DASH_ITEM_LABEL_SHOW_TIME = Dash.DASH_ITEM_LABEL_SHOW_TIME ?? 150;
+
 let recentlyClickedAppLoopId = 0;
 let recentlyClickedApp = null;
 let recentlyClickedAppWindows = null;
@@ -90,7 +93,7 @@ let recentlyClickedAppMonitor = -1;
  * - Update minimization animation target
  * - Update menu if open on windows change
  */
-const DockAbstractAppIcon = GObject.registerClass({
+export const DockAbstractAppIcon = GObject.registerClass({
     GTypeFlags: GObject.TypeFlags.ABSTRACT,
     Properties: {
         'focused': GObject.ParamSpec.boolean(
@@ -426,6 +429,14 @@ const DockAbstractAppIcon = GObject.registerClass({
         // it called by the parent constructor.
     }
 
+    notifyAppIconUpdating(monitorIndex) {
+        const icon = Gio.Icon.new_for_string('action-unavailable-symbolic');
+        const {osdWindowManager} = Main;
+        const showOsd = osdWindowManager.showOne ?? osdWindowManager.show;
+        showOsd.call(osdWindowManager, monitorIndex ?? this.monitorIndex, icon,
+            _('%s is updating, try again later').format(this.name), null);
+    }
+
     popupMenu() {
         this._removeMenuTimeout?.();
         this.fake_release();
@@ -476,7 +487,8 @@ const DockAbstractAppIcon = GObject.registerClass({
 
         this.set_hover(true);
         this._menu.popup();
-        this._menuManager.ignoreRelease();
+        // Removed in GNOME 50.
+        this._menuManager.ignoreRelease?.();
         this.emit('sync-tooltip');
 
         return false;
@@ -750,10 +762,7 @@ const DockAbstractAppIcon = GObject.registerClass({
     // the existing window instead.
     launchNewWindow() {
         if (this.updating) {
-            const icon = Gio.Icon.new_for_string('action-unavailable-symbolic');
-            Main.osdWindowManager.show(-1, icon,
-                _('%s is updating, try again later').format(this.name),
-                null);
+            this.notifyAppIconUpdating();
             return;
         }
 
@@ -1531,7 +1540,8 @@ export const DockShowAppsIcon = GObject.registerClass({
 
         this.toggleButton.set_hover(true);
         this._menu.popup();
-        this._menuManager.ignoreRelease();
+        // Removed in GNOME 50.
+        this._menuManager.ignoreRelease?.();
         this.emit('sync-tooltip');
 
         return false;
@@ -1623,7 +1633,7 @@ export function itemShowLabel() {
     this.label.set_position(x, y);
     this.label.ease({
         opacity: 255,
-        duration: Dash.DASH_ITEM_LABEL_SHOW_TIME,
+        duration: DASH_ITEM_LABEL_SHOW_TIME,
         mode: Clutter.AnimationMode.EASE_OUT_QUAD,
     });
     /* eslint-enable no-invalid-this */

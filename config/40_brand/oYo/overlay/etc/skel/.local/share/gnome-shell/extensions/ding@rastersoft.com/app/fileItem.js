@@ -21,6 +21,7 @@ const Gtk = imports.gi.Gtk;
 const Atk = imports.gi.Atk;
 const Gdk = imports.gi.Gdk;
 const Gio = imports.gi.Gio;
+const GioUnix = imports.gi.GioUnix;
 const GLib = imports.gi.GLib;
 const DesktopIconsUtil = imports.desktopIconsUtil;
 const desktopIconItem = imports.desktopIconItem;
@@ -112,24 +113,18 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
     }
 
     setAccessibleName(filename) {
+        if (this._fileExtra === Enums.FileType.USER_DIRECTORY_HOME) {
+            /** TRANSLATORS: when using a screen reader, this is the text read when the user's personal folder is
+              * highlighted. */
+            filename = _('Home');
+        }
+        if (this._fileExtra === Enums.FileType.USER_DIRECTORY_TRASH) {
+            /** TRANSLATORS: when using a screen reader, this is the text read when the trash folder is
+              * highlighted. */
+            filename = _('Trash');
+        }
         const specialCases = [
             [
-                this._fileExtra === Enums.FileType.USER_DIRECTORY_HOME,
-                /** TRANSLATORS: when using a screen reader, this is the text read when the user's personal folder is
-                 * highlighted. */
-                _('Home'),
-                /** TRANSLATORS: when using a screen reader, this is the text read when the user's personal folder is
-                 * highlighted and selected. */
-                _('Home Selected')
-            ], [
-                this._fileExtra === Enums.FileType.USER_DIRECTORY_TRASH,
-                /** TRANSLATORS: when using a screen reader, this is the text read when the trash folder is
-                 * highlighted. */
-                _('Trash'),
-                /** TRANSLATORS: when using a screen reader, this is the text read when the trash folder is
-                 * highlighted and selected. */
-                _('Trash Selected')
-            ], [
                 this._fileExtra === Enums.FileType.EXTERNAL_DRIVE,
                 /** TRANSLATORS: when using a screen reader, this is the role used when an external drive is
                  * highlighted. Example: if a USB stick named "my_portable" is highlighted, it will say "my_portable Drive".
@@ -151,7 +146,7 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
                  * It is mandatory to say the file name first, then the role, and finally "Selected". */
                 _('${VisibleName} Stack Selected')
             ], [
-                this._isDirectory,
+                this._isDirectory || (this._fileExtra === Enums.FileType.USER_DIRECTORY_HOME) || (this._fileExtra === Enums.FileType.USER_DIRECTORY_TRASH),
                 /** TRANSLATORS: when using a screen reader, this is the role used when a folder is
                  * highlighted. Example: if a folder named "things" is highlighted, it will say "things Folder".
                  * It is mandatory to say the file name first and the role after. */
@@ -337,7 +332,7 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
 
         if (this._isDesktopFile) {
             try {
-                this._desktopFile = Gio.DesktopAppInfo.new_from_filename(this._file.get_path());
+                this._desktopFile = GioUnix.DesktopAppInfo.new_from_filename(this._file.get_path());
                 if (!this._desktopFile) {
                     console.log(`Couldn’t parse ${this._displayName} as a desktop file, will treat it as a regular file.`);
                     this._isValidDesktopFile = false;
@@ -382,6 +377,12 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
         this._showerrorpopup(title, error);
     }
 
+    _getDefaultLaunchContext() {
+        const launchContext = Gdk.Display.get_default().get_app_launch_context();
+        launchContext.set_timestamp(Gtk.get_current_event_time());
+        return launchContext;
+    }
+
     _doOpenContext(context, fileList) {
         if (!fileList) {
             fileList = [];
@@ -415,7 +416,7 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
             return;
         }
         Gio.AppInfo.launch_default_for_uri_async(this.file.get_uri(),
-            null, null,
+            context, null,
             (source, result) => {
                 try {
                     Gio.AppInfo.launch_default_for_uri_finish(result);
@@ -643,7 +644,7 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
         if (!fileList) {
             fileList = [];
         }
-        this._doOpenContext(null, fileList);
+        this._doOpenContext(this._getDefaultLaunchContext(), fileList);
     }
 
     onAllowDisallowLaunchingClicked() {
@@ -707,7 +708,7 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
             }
 
             let envS = env.get_strv();
-            let context = new Gio.AppLaunchContext();
+            const context = this._getDefaultLaunchContext();
             for (let i = 0; i < envS.length; i += 2) {
                 context.setenv(envS[i], envS[i + 1]);
             }

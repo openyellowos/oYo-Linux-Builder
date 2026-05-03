@@ -1,24 +1,18 @@
-<b><span size="large">v68.0</span></b>
+<b><span size="large">v69.0</span></b>
 
-- Add option to show/hide scrollbars.
-- Add option to enable/disable overlay scrollbars.
-- Add option to hide GNOME Overview when ArcMenu opens.
-- Add more distro icons.
-- Add DBus method ToggleStandaloneRunner to open/close the standalone runner.
-- App Context Menu
-    - Fix desktop shortcut menu item visibility bug.
-- Pop layout
-    - Make Library Home folder hide automatically when empty
-    - Fix active style pseudo class not persisting on folder items
-    - Fix bugs when dragging to the Home folder, existing folders, or the New Folder
-- Runner layout
-    - Add option to change search bar location.
-    - Add option to toggle Configure Runner button.
-    - Add option to toggle Static Height mode.
-    - Improve spacing/padding consistency.
-- Settings
-    - Reorganize Fine Tune page in settings.
-    - Implement new Icon Chooser dialog for Menu Button and Pinned Apps.
-    - Add Configure Runner button next to Standalone Runner section.
-- Use GResource file to bundle all custom icons.
-- Fix bug causing scrollbars to jump back to the previously selected menu item.
+- Add GNOME 50 support.
+- Zest Layout
+    - Move power buttons to the left panel.
+    - Move searchbar to bottom by default.
+    - Add tweak to change searchbar location.
+- Runner Layout: Add option to show pinned apps.
+- Search
+    - Use more async functions, handle errors and fix cancellable handling.
+    - Show spinner while searching.
+- Ensure hotkeys and DBus methods are registered only once.
+- Add option to show generic application names.
+- Fix search bar growing on long input.
+- Add new applications-accessories-symbolic icon.
+- IconGrid: remove first-row-align property.
+    - All rows are now strictly left-aligned.
+- Search Entry: add context menu.

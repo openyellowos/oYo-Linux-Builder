@@ -278,8 +278,8 @@ export class BaseMenuLayout extends St.BoxLayout {
             appList.push(key);
         });
         appList.sort((a, b) => {
-            const nameA = a.get_name();
-            const nameB = b.get_name();
+            const nameA = Utils.getAppDisplayName(a);
+            const nameB = Utils.getAppDisplayName(b);
             return nameA.localeCompare(nameB);
         });
         return appList;
@@ -407,8 +407,8 @@ export class BaseMenuLayout extends St.BoxLayout {
             categoryMenuItem.populateMenu();
         } else {
             categoryMenuItem.appList.sort((a, b) => {
-                const nameA = a.get_name();
-                const nameB = b.get_name();
+                const nameA = Utils.getAppDisplayName(a);
+                const nameB = Utils.getAppDisplayName(b);
                 return nameA.localeCompare(nameB);
             });
         }
@@ -934,7 +934,7 @@ export class BaseMenuLayout extends St.BoxLayout {
                 parent.remove_child(item);
 
             if (groupAllAppsAlphabetically && category === Constants.CategoryType.ALL_PROGRAMS) {
-                const appNameFirstChar = app.get_name().charAt(0).toLowerCase();
+                const appNameFirstChar = Utils.getAppDisplayName(app).charAt(0).toLowerCase();
                 if (currentCharacter !== appNameFirstChar) {
                     currentCharacter = appNameFirstChar;
 

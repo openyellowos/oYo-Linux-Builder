@@ -200,7 +200,7 @@ var TemplatesScriptsManager = class extends SignalManager.SignalManager {
         if ((scriptsList == null) || (scriptsList.length == 0)) {
             return null;
         }
-        let scriptSubMenu = new Gtk.Menu();
+        const scriptSubMenu = DesktopIconsUtil.createDesktopMenu();
         for (let fileItem of scriptsList) {
             let menuItemName = fileItem[0];
             if (this._flags & TemplatesScriptsManagerFlags.HIDE_EXTENSIONS) {

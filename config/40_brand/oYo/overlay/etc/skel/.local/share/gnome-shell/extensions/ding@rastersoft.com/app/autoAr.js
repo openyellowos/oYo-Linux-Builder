@@ -227,11 +227,11 @@ var AutoAr = class {
             e => console.error(e));
     }
 
-    compressFileItems(fileList, destinationFolder) {
+    compressFileItems(fileList, destinationFolder, parentWindow) {
         if (!this.checkAutoAr()) {
             return;
         }
-        new CompressDialog(this._desktopManager, fileList, destinationFolder);
+        new CompressDialog(this._desktopManager, fileList, destinationFolder, parentWindow);
     }
 
     compressFiles(fileList, outputFile, format, filter, password = null) {
@@ -543,7 +543,7 @@ const progressDialog = class {
 
 
 const CompressDialog = class {
-    constructor(desktopManager, fileList, destinationFolder) {
+    constructor(desktopManager, fileList, destinationFolder, parentWindow) {
         this._fileList = [];
         for (let file of fileList) {
             this._fileList.push(file.file);
@@ -552,6 +552,7 @@ const CompressDialog = class {
         this._destinationFolder = destinationFolder;
         this._dialog = new Gtk.Dialog({
             title: _('Create archive'),
+            transientFor: parentWindow,
             resizable: false,
             modal: true,
             use_header_bar: true,

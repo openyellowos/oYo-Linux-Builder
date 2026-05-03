@@ -1,4 +1,5 @@
 import Adw from 'gi://Adw';
+import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk';
 
@@ -177,7 +178,7 @@ class ArcMenuLayoutTweaksPage extends SubPage {
         avatarStyles.append(_('Round'));
         avatarStyles.append(_('Square'));
         const avatarStyleRow = new Adw.ComboRow({
-            title: _('Avatar Icon Shape'),
+            title: _('Avatar Shape'),
             model: avatarStyles,
             selected: this._settings.get_enum('avatar-style'),
         });
@@ -225,20 +226,17 @@ class ArcMenuLayoutTweaksPage extends SubPage {
         return horizontalFlipRow;
     }
 
-    _showAvatarRow() {
-        const showAvatarSwitch = new Gtk.Switch({
-            valign: Gtk.Align.CENTER,
-        });
-        showAvatarSwitch.set_active(this._settings.get_boolean('show-user-avatar'));
-        showAvatarSwitch.connect('notify::active', widget => {
-            this._settings.set_boolean('show-user-avatar', widget.get_active());
-        });
-        const showAvatarRow = new Adw.ActionRow({
+    _createAvatarExpanderRow() {
+        const expanderRow = new Adw.ExpanderRow({
             title: _('Show User Avatar'),
-            activatable_widget: showAvatarSwitch,
+            show_enable_switch: true,
+            expanded: this._settings.get_boolean('scrollbars-visible'),
         });
-        showAvatarRow.add_suffix(showAvatarSwitch);
-        return showAvatarRow;
+        this._settings.bind('show-user-avatar', expanderRow, 'enable_expansion', Gio.SettingsBindFlags.DEFAULT);
+
+        const comboRow = this._createAvatarShapeRow();
+        expanderRow.add_row(comboRow);
+        return expanderRow;
     }
 
     _loadEnterpriseTweaks() {
@@ -634,19 +632,19 @@ class ArcMenuLayoutTweaksPage extends SubPage {
         const miscGroup = new Adw.PreferencesGroup();
         this.add(miscGroup);
 
-        const frequentAppsSwitch = new Gtk.Switch({
-            valign: Gtk.Align.CENTER,
+        const defaulViews = new Gtk.StringList();
+        defaulViews.append(_('Default'));
+        defaulViews.append(_('Pinned Apps'));
+        defaulViews.append(_('Frequent Apps'));
+        const defaultViewRow = new Adw.ComboRow({
+            title: _('Default View'),
+            model: defaulViews,
+            selected: this._settings.get_enum('default-menu-view-runner'),
         });
-        frequentAppsSwitch.set_active(this._settings.get_boolean('runner-show-frequent-apps'));
-        frequentAppsSwitch.connect('notify::active', widget => {
-            this._settings.set_boolean('runner-show-frequent-apps', widget.get_active());
+        defaultViewRow.connect('notify::selected', widget => {
+            this._settings.set_enum('default-menu-view-runner', widget.selected);
         });
-        const frequentAppsRow = new Adw.ActionRow({
-            title: _('Show Frequent Apps'),
-            activatable_widget: frequentAppsSwitch,
-        });
-        frequentAppsRow.add_suffix(frequentAppsSwitch);
-        miscGroup.add(frequentAppsRow);
+        miscGroup.add(defaultViewRow);
 
         const showSettingsSwitch = new PW.SwitchRow(this._settings, {
             setting_name: 'runner-show-settings-button',
@@ -807,10 +805,9 @@ class ArcMenuLayoutTweaksPage extends SubPage {
         });
         tweaksGroup.add(defaultViewRow);
 
-        tweaksGroup.add(this._createAvatarShapeRow());
+        tweaksGroup.add(this._createAvatarExpanderRow());
         tweaksGroup.add(this._createSearchBarLocationRow());
         tweaksGroup.add(this._createFlipHorizontalRow());
-        tweaksGroup.add(this._showAvatarRow());
         tweaksGroup.add(this._createVertSeparatorRow());
 
         this.add(tweaksGroup);
@@ -852,8 +849,7 @@ class ArcMenuLayoutTweaksPage extends SubPage {
     _loadInsiderMenuTweaks() {
         const tweaksGroup = new Adw.PreferencesGroup();
         tweaksGroup.add(this._createVertSeparatorRow());
-        tweaksGroup.add(this._createAvatarShapeRow());
-        tweaksGroup.add(this._showAvatarRow());
+        tweaksGroup.add(this._createAvatarExpanderRow());
         this.add(tweaksGroup);
 
         const extraShortcutsGroup = new Adw.PreferencesGroup();
@@ -963,10 +959,9 @@ class ArcMenuLayoutTweaksPage extends SubPage {
         tweaksGroup.add(allAppsButtonActionRow);
 
         const searchBarBottomDefault = true;
-        tweaksGroup.add(this._createAvatarShapeRow());
+        tweaksGroup.add(this._createAvatarExpanderRow());
         tweaksGroup.add(this._createSearchBarLocationRow(searchBarBottomDefault));
         tweaksGroup.add(this._createFlipHorizontalRow());
-        tweaksGroup.add(this._showAvatarRow());
         tweaksGroup.add(this._createVertSeparatorRow());
         this.add(tweaksGroup);
 
@@ -1034,10 +1029,11 @@ class ArcMenuLayoutTweaksPage extends SubPage {
     _loadZestTweaks() {
         const tweaksGroup = new Adw.PreferencesGroup();
         this.add(tweaksGroup);
+        const searchBarBottomDefault = true;
         tweaksGroup.add(this._createActivateOnHoverRow());
-        tweaksGroup.add(this._createAvatarShapeRow());
+        tweaksGroup.add(this._createAvatarExpanderRow());
+        tweaksGroup.add(this._createSearchBarLocationRow(searchBarBottomDefault));
         tweaksGroup.add(this._createFlipHorizontalRow());
-        tweaksGroup.add(this._showAvatarRow());
         tweaksGroup.add(this._createVertSeparatorRow());
 
         const extraShortcutsGroup = new Adw.PreferencesGroup();
