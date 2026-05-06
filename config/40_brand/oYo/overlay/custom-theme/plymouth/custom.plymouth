@@ -5,7 +5,7 @@ ModuleName=two-step
 
 [two-step]
 Font=Cantarell 12
-TitleFont=Cantarell Light 30
+TitleFont=Cantarell 12
 ImageDir=/usr/share/plymouth/themes/custom
 DialogHorizontalAlignment=.5
 DialogVerticalAlignment=.382
