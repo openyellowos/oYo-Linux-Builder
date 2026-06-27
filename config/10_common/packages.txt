@@ -204,3 +204,6 @@ firmware-zd1211
 shim-signed
 grub-efi-amd64-signed
 mokutil
+
+# 指紋認証ドライバ
+biometric-driver-community-multidevice
