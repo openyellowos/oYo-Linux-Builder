@@ -11,8 +11,8 @@ import {gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions
 
 export const VisualSettingsPage = GObject.registerClass(
 class ArcMenuVisualSettingsPage extends SubPage {
-    _init(settings, params) {
-        super._init(settings, params);
+    _init(extension, settings, params) {
+        super._init(extension, settings, params);
 
         const menuSizeFrame = new Adw.PreferencesGroup({
             title: _('Menu Size'),
@@ -299,7 +299,7 @@ class ArcMenuVisualSettingsPage extends SubPage {
     }
 });
 
-var CustomGridIconDialogWindow = GObject.registerClass(
+const CustomGridIconDialogWindow = GObject.registerClass(
 class ArcMenuCustomGridIconDialogWindow extends PW.DialogWindow {
     _init(settings, parent) {
         super._init(_('Custom Grid Icon Size'), parent);

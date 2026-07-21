@@ -263,7 +263,7 @@ function getFileExtensionOffset(filename, opts = {'isDirectory': false}) {
     let offset = filename.length;
     let extension = '';
     if (!opts.isDirectory) {
-        const doubleExtensions = ['.gz', '.bz2', '.sit', '.Z', '.bz', '.xz'];
+        const doubleExtensions = ['.gz', '.bz2', '.sit', '.Z', '.bz', '.xz', '.zst'];
         for (const item of doubleExtensions) {
             if (filename.endsWith(item)) {
                 offset -= item.length;

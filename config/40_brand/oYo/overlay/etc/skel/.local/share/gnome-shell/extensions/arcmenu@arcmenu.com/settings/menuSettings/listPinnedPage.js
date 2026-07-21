@@ -10,7 +10,7 @@ import * as PW from '../../prefsWidgets.js';
 import * as SettingsUtils from '../settingsUtils.js';
 import {SubPage} from './subPage.js';
 
-import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 const getGioUnixDesktopAppInfo = async () => {
     try {
@@ -27,11 +27,11 @@ const GioUnixDesktopAppInfo = await getGioUnixDesktopAppInfo();
 
 /**
  *
+ * @param {ExtensionPreferences} extension
  * @param {string} schema
  * @param {string} path
  */
-function getSettings(schema, path) {
-    const extension = ExtensionPreferences.lookupByURL(import.meta.url);
+function getSettings(extension, schema, path) {
     const schemaDir = extension.dir.get_child('schemas');
     let schemaSource;
     if (schemaDir.query_exists(null)) {
@@ -46,10 +46,7 @@ function getSettings(schema, path) {
 
     const schemaObj = schemaSource.lookup(schema, true);
     if (!schemaObj) {
-        log(
-            `Schema ${schema} could not be found for extension ${
-                extension.metadata.uuid}. Please check your installation.`
-        );
+        console.warn(`Schema ${schema} could not be found for ArcMenu. Please check your installation.`);
         return null;
     }
 
@@ -62,8 +59,8 @@ function getSettings(schema, path) {
 
 export const ListPinnedPage = GObject.registerClass(
 class ArcMenuListPinnedPage extends SubPage {
-    _init(settings, params) {
-        super._init(settings, params);
+    _init(extension, settings, params) {
+        super._init(extension, settings, params);
 
         this._settings = settings;
         this.frameRows = [];
@@ -93,7 +90,7 @@ class ArcMenuListPinnedPage extends SubPage {
             const folderSchema = `${this._settings.schema_id}.pinned-apps-folders`;
             const folderPath = `${this._settings.path}pinned-apps-folders/${this.setting_string}/`;
             this.settingString = 'pinned-apps';
-            this._settings = getSettings(folderSchema, folderPath);
+            this._settings = getSettings(this._extension, folderSchema, folderPath);
             this.restoreDefaultsButton.visible = false;
         }
 
@@ -304,7 +301,7 @@ class ArcMenuListPinnedPage extends SubPage {
             });
             row.add_suffix(goNextImage);
             row.connect('activated', () => {
-                const folderSubpage = new ListPinnedPage(this._settings, {
+                const folderSubpage = new ListPinnedPage(this._extension, this._settings, {
                     title: shortcutData.name,
                     setting_string: shortcutData.id,
                     list_type: Constants.MenuSettingsListType.FOLDER_PINNED_APPS,
@@ -326,7 +323,7 @@ class ArcMenuListPinnedPage extends SubPage {
     }
 });
 
-var AddAppsToPinnedListWindow = GObject.registerClass(
+const AddAppsToPinnedListWindow = GObject.registerClass(
 class ArcMenuAddAppsToPinnedListWindow extends PW.DialogWindow {
     _init(settings, parent, dialogType, settingString) {
         this._settings = settings;
@@ -561,7 +558,7 @@ class ArcMenuAddAppsToPinnedListWindow extends PW.DialogWindow {
     }
 });
 
-var AddCustomLinkDialogWindow = GObject.registerClass(
+const AddCustomLinkDialogWindow = GObject.registerClass(
 class ArcMenuAddCustomLinkDialogWindow extends PW.HeaderBarDialog {
     _init(settings, parent, dialogType, shortcutData = null) {
         let title = _('Add a Custom Shortcut');

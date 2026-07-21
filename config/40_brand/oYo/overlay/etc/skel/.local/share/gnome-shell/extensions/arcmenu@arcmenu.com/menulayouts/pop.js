@@ -118,6 +118,7 @@ export class Layout extends BaseMenuLayout {
             column_spacing: 6,
             row_spacing: 6,
             halign: Clutter.ActorAlign.CENTER,
+            first_row_align: Clutter.ActorAlign.CENTER,
         });
         this._setFolderGridColumns();
         this.foldersContainer.add_child(this.foldersGrid);
@@ -1052,6 +1053,12 @@ class GroupFolderItem extends BaseFolderItem {
         });
         this._menuLayout._folderSettings.set_strv('folder-children', orderedFolders);
     }
+
+    _onDestroy() {
+        this._folder = null;
+
+        super._onDestroy();
+    }
 }
 
 export class ApplicationMenuItem extends MW.DraggableMenuItem {
@@ -1215,7 +1222,7 @@ export class ApplicationMenuItem extends MW.DraggableMenuItem {
 
         MW.launchApp(this._app, event);
 
-        this._menuLayout.arcMenu.toggle();
+        this._menuLayout.closeArcMenu();
         super.activate(event);
     }
 }

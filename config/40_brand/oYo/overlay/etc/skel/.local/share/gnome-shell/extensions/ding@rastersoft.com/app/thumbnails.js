@@ -66,6 +66,9 @@ var ThumbnailLoader = class {
             }
             // if the file disappeared while waiting in the queue, don't refresh the thumbnail
             [file, callback] = this._thumbList.shift();
+            if (file._destroyed) {
+                continue;
+            }
             if (file.file.query_exists(null)) {
                 if (this._thumbnailFactoryLarge.has_valid_failed_thumbnail(file.uri, file.modifiedTime)) {
                     if (callback) {

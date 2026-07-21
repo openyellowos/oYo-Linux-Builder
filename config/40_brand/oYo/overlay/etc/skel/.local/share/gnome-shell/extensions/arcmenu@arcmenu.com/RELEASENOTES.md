@@ -1,3 +1,17 @@
+<b><span size="large">v69.2</span></b>
+
+- Fix bug causing issues opening ArcMenu Settings.
+
+<b><span size="large">v69.1</span></b>
+
+- Add option to keep ArcMenu open when activating an item with Ctrl pressed.
+- Pop layout: center align folder grid.
+- Add Shift+F10 keyboard shortcut to open menu item context menus.
+- Fix malformed icon path in update notifier.
+- Fix keyboard navigation bug causing search entry popup menu to incorrectly open.
+- Fix keyboard navigation bug when search results displayed.
+- Fix key focus issues after activating an item when menu remains open.
+
 <b><span size="large">v69.0</span></b>
 
 - Add GNOME 50 support.

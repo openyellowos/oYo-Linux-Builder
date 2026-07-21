@@ -417,7 +417,7 @@ var FileItemMenu = class {
                 Gtk.DialogFlags.MODAL | Gtk.DialogFlags.USE_HEADER_BAR,
                 mimetype);
             let signals = new SignalManager.SignalManager();
-            chooser.show_all();
+            chooser.show();
             signals.connectSignal(chooser, 'close', () => {
                 chooser.response(Gtk.ResponseType.CANCEL);
             });

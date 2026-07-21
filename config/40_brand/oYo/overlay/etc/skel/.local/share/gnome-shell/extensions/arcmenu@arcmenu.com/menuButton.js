@@ -187,7 +187,7 @@ class ArcMenuMenuButton extends PanelMenu.Button {
         const loadingPlaceholder = this._createLoadingPlaceholder();
         this.arcMenu.box.add_child(loadingPlaceholder);
 
-        const layout = ArcMenuManager.settings.get_enum('menu-layout');
+        const layout = ArcMenuManager.settings.get_string('menu-layout');
         this._menuLayout = LayoutHandler.createMenuLayout(this, layout);
 
         loadingPlaceholder.destroy();
@@ -228,11 +228,11 @@ class ArcMenuMenuButton extends PanelMenu.Button {
     }
 
     setMenuPositionAlignment() {
-        const layout = ArcMenuManager.settings.get_enum('menu-layout');
+        const layout = ArcMenuManager.settings.get_string('menu-layout');
         const arrowAlignment = 1 - (ArcMenuManager.settings.get_int('menu-position-alignment') / 100);
         const panelPosition = ArcMenuManager.settings.get_enum('position-in-panel');
 
-        if (layout !== Constants.MenuLayout.RUNNER) {
+        if (layout !== 'runner') {
             if (panelPosition === Constants.MenuPosition.CENTER) {
                 this.arcMenuContextMenu._arrowAlignment = arrowAlignment;
                 this.arcMenu._arrowAlignment = arrowAlignment;
@@ -310,10 +310,8 @@ class ArcMenuMenuButton extends PanelMenu.Button {
     }
 
     forceMenuLocation() {
-        const layout = ArcMenuManager.settings.get_enum('menu-layout');
-        if (layout === Constants.MenuLayout.RUNNER ||
-            layout === Constants.MenuLayout.RAVEN ||
-            layout === Constants.MenuLayout.GNOME_OVERVIEW)
+        const layout = ArcMenuManager.settings.get_string('menu-layout');
+        if (layout === 'runner' || layout === 'raven' || layout === 'gnome-overview')
             return;
 
         this.arcMenu.actor.remove_style_class_name('bottomOfScreenMenu');
@@ -441,8 +439,8 @@ class ArcMenuMenuButton extends PanelMenu.Button {
     toggleMenu() {
         this._closeOtherMenus();
 
-        const layout = ArcMenuManager.settings.get_enum('menu-layout');
-        if (layout === Constants.MenuLayout.GNOME_OVERVIEW) {
+        const layout = ArcMenuManager.settings.get_string('menu-layout');
+        if (layout === 'gnome-overview') {
             if (ArcMenuManager.settings.get_boolean('gnome-dash-show-applications'))
                 Main.overview._overview._controls._toggleAppsPage();
             else
@@ -468,8 +466,8 @@ class ArcMenuMenuButton extends PanelMenu.Button {
         if (!this._menuLayout)
             return;
 
-        const layout = ArcMenuManager.settings.get_enum('menu-layout');
-        if (layout === Constants.MenuLayout.RUNNER || layout === Constants.MenuLayout.RAVEN) {
+        const layout = ArcMenuManager.settings.get_string('menu-layout');
+        if (layout === 'runner' || layout === 'raven') {
             this._menuLayout.style = '';
             return;
         }
@@ -734,7 +732,7 @@ export const ArcMenu = class ArcMenuArcMenu extends PopupMenu.PopupMenu {
     }
 };
 
-var ArcMenuContextMenu = class ArcMenuArcMenuContextMenu extends PopupMenu.PopupMenu {
+const ArcMenuContextMenu = class ArcMenuArcMenuContextMenu extends PopupMenu.PopupMenu {
     constructor(sourceActor, arrowAlignment, arrowSide) {
         super(sourceActor, arrowAlignment, arrowSide);
         this._systemActions = SystemActions.getDefault();

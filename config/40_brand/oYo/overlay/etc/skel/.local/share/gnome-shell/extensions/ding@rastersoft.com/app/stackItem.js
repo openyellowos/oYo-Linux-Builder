@@ -43,6 +43,7 @@ var stackItem = class extends desktopIconItem.desktopIconItem {
         this._createIconActor();
         this._createStackTopIcon();
         this._setLabelName(this._file);
+        this.setAccessibleName(this._getVisibleName());
     }
 
     _createStackTopIcon() {
@@ -57,16 +58,38 @@ var stackItem = class extends desktopIconItem.desktopIconItem {
         this._icon.set_from_surface(surface);
     }
 
+    doOpen() {
+        this._desktopManager.onToggleStackUnstackThisTypeClicked(this.attributeContentType);
+    }
     _doButtonOnePressed(event, shiftPressed, controlPressed) {
         this._desktopManager.onToggleStackUnstackThisTypeClicked(this.attributeContentType);
     }
 
     setSelected() {
-
     }
 
     updateIcon() {
         this._createStackTopIcon();
+    }
+
+    _getVisibleName() {
+        return this._currentFileName;
+    }
+
+    setAccessibleName(filename) {
+        /** TRANSLATORS: when using a screen reader, this is the role used when a stack is
+         * unexpanded, or contracted. Example: if a stack named "pictures" is contracted, it will say "pictures Stack Unexpanded".
+         * It is mandatory to say the file name first and the role after. */
+        const unexpanded = _('${VisibleName} Stack Unexpanded');
+        /** TRANSLATORS: when using a screen reader, this is the role used when a stack is
+         * expanded. Example: if a stack named "pictures" is expanded (thus, their content is visible), it will say "pictures Stack Expanded".
+         * It is mandatory to say the file name first and the role after. */
+        const expanded = _('${VisibleName} Stack Expanded');
+        const isExpanded = Prefs.getUnstackList().includes(this.attributeContentType);
+
+        const accessible = this._containerAccessibility.get_accessible();
+        const visibleNameAndRole = (isExpanded ? expanded : unexpanded).replace('${VisibleName}', filename);
+        accessible.set_name(visibleNameAndRole);
     }
 
     /** *********************

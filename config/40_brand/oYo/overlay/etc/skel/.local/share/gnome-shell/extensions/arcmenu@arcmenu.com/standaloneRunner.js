@@ -7,7 +7,6 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {ArcMenu} from './menuButton.js';
-import * as Constants from './constants.js';
 import * as LayoutHandler from './menulayouts/layoutHandler.js';
 import * as MW from './menuWidgets.js';
 
@@ -51,7 +50,7 @@ export const StandaloneRunner = class ArcMenuStandaloneRunner {
         this._destroyMenuLayout();
 
         const standaloneRunner = true;
-        this._menuLayout = LayoutHandler.createMenuLayout(this, Constants.MenuLayout.RUNNER, standaloneRunner);
+        this._menuLayout = LayoutHandler.createMenuLayout(this, 'runner', standaloneRunner);
 
         if (this._menuLayout)
             this.arcMenu.box.add_child(this._menuLayout);
