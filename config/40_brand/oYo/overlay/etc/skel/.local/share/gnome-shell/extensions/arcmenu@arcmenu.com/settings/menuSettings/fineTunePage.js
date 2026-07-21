@@ -11,8 +11,8 @@ import {gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions
 
 export const FineTunePage = GObject.registerClass(
 class ArcMenuFineTunePage extends SubPage {
-    _init(settings, params) {
-        super._init(settings, params);
+    _init(extension, settings, params) {
+        super._init(extension, settings, params);
 
         // Store settings used on this page to reset to default values.
         const settingsData = [];
@@ -56,6 +56,10 @@ class ArcMenuFineTunePage extends SubPage {
         const activateOnLaunchRow = createSwitchRow('activate-on-launch', _('Activate App Window on Launch'),
             _('Launching an app activates its existing window if one is open; otherwise, it launches a new instance. Hold Ctrl while launching or middle-click to open a new window.'));
         miscGroup.add(activateOnLaunchRow);
+
+        const keepOpenCtrlClickRow = createSwitchRow('keep-open-on-ctrl-click', _('Keep ArcMenu Open on Ctrl+Click'),
+            _('Prevents the menu from closing when activating items while holding Ctrl.'));
+        miscGroup.add(keepOpenCtrlClickRow);
 
         const scrollviewGroup = new Adw.PreferencesGroup({
             title: _('Scrollview Options'),

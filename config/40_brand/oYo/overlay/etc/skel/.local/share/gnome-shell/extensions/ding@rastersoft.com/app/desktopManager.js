@@ -92,6 +92,7 @@ var DesktopManager = class {
         }
         this._clickX = 0;
         this._clickY = 0;
+        this._clipboardRequestId = 0;
         this._dragList = null;
         this.dragItem = null;
         this.thumbnailLoader = new Thumbnails.ThumbnailLoader(this, codePath);
@@ -695,16 +696,24 @@ var DesktopManager = class {
         }
         this._pasteMenuItem.set_sensitive(false);
         this._syncUndoRedo();
-        this._updateClipBoard();
+        this._updateClipBoard().catch(e => {
+            print(`Exception while updating the clipboard: ${e.message}\n${e.stack}`);
+        });
     }
 
-    _updateClipBoard() {
+    async _updateClipBoard() {
         let atom = Gdk.Atom.intern('CLIPBOARD', false);
         let atom2 = Gdk.Atom.intern('x-special/gnome-copied-files', false);
         let clipboard = Gtk.Clipboard.get(atom);
         this._isCut = false;
         this._clipboardFiles = null;
-        let text = null;
+        /*
+            * Reading the clipboard does an IPC round-trip to the clipboard owner, which can take arbitrarily long
+            * (a busy or hung owner, or a very big clipboard), so it is done asynchronously to avoid blocking the
+            * desktop. Remember which request is the most recent one, so a slow reply can never overwrite the
+            * result of a newer request.
+            */
+        const requestId = ++this._clipboardRequestId;
         /*
             * Before Gnome Shell 40, St API couldn't access binary data in the clipboard, only text data. Also, the
             * original Desktop Icons was a pure extension, so it was limited to what Clutter and St offered. That was
@@ -723,16 +732,39 @@ var DesktopManager = class {
             * To maintain compatibility, we first check if there's binary data in that atom, and if not, we check if
             * there is text data in the old format.
             */
-        if (clipboard.wait_is_target_available(atom2)) {
-            let data = clipboard.wait_for_contents(atom2);
-            text = `x-special/nautilus-clipboard\n${ByteArray.toString(data.get_data())}\n`;
+        let text;
+        const data = await this._readClipboardContents(clipboard, atom2);
+        if (data) {
+            text = `x-special/nautilus-clipboard\n${ByteArray.toString(data)}\n`;
         } else {
-            text = clipboard.wait_for_text();
+            text = await this._readClipboardText(clipboard);
             if (text && !text.endsWith('\n')) {
                 text += '\n';
             }
         }
+        // A newer request was started while this one was in flight; let it win.
+        if (requestId !== this._clipboardRequestId) {
+            return false;
+        }
         this._setClipboardContent(text);
+        return true;
+    }
+
+    _readClipboardContents(clipboard, atom) {
+        return new Promise(resolve => {
+            // The SelectionData is only valid inside the callback, so the bytes must be
+            // extracted here, not after the await. It is non-null even when the target is
+            // unavailable, with a negative length.
+            clipboard.request_contents(atom, (clip, data) => {
+                resolve(data && (data.get_length() > 0) ? data.get_data() : null);
+            });
+        });
+    }
+
+    _readClipboardText(clipboard) {
+        return new Promise(resolve => {
+            clipboard.request_text((clip, text) => resolve(text));
+        });
     }
 
     _setClipboardContent(text) {
@@ -960,8 +992,9 @@ var DesktopManager = class {
             this.doCut();
             return true;
         } else if (isCtrl && ((symbol == Gdk.KEY_V) || (symbol == Gdk.KEY_v))) {
-            this._updateClipBoard();
-            this._doPaste();
+            this._pasteFromClipboard().catch(e => {
+                print(`Exception while pasting from the clipboard: ${e.message}\n${e.stack}`);
+            });
             return true;
         } else if (isAlt && (symbol == Gdk.KEY_Return)) {
             let currentSelection = this.getCurrentSelection(true);
@@ -1278,6 +1311,14 @@ var DesktopManager = class {
         DesktopIconsUtil.launchTerminal(desktopPath, null);
     }
 
+    async _pasteFromClipboard() {
+        // Only paste if this clipboard read is the one that took effect; a newer
+        // read superseding it must not trigger a duplicate paste.
+        if (await this._updateClipBoard()) {
+            this._doPaste();
+        }
+    }
+
     _doPaste() {
         if (this._clipboardFiles === null) {
             return;
@@ -1445,6 +1486,11 @@ var DesktopManager = class {
                 if (this._forceDraw) {
                     this._drawDesktop(fileList);
                     this._lastDesktopUpdateRequest = GLib.get_monotonic_time();
+                } else {
+                    // Destroy the unused FileItems to prevent memory leak
+                    for (let item of fileList) {
+                        item._onDestroy();
+                    }
                 }
             }
             await DesktopIconsUtil.waitDelayMs(500);
@@ -1506,6 +1552,7 @@ var DesktopManager = class {
                                     // only overwrite them if needed
                                     fileItem.savedCoordinates = null;
                                 }
+                                fileItem._onDestroy();
                                 continue;
                             }
                             fileList.push(fileItem);
@@ -1539,6 +1586,9 @@ var DesktopManager = class {
     }
 
     _drawDesktop(fileList) {
+        // Clear stacking data that references items about to be destroyed
+        this._allFileList = null;
+        this.stackInitialCoordinates = null;
         this._selectedFiles = this.getCurrentSelection(true);
         if (this._renameWindow) {
             // disconnect the popup from the fileItem to avoid it being
@@ -2021,6 +2071,7 @@ var DesktopManager = class {
     }
 
     doStacks(restack) {
+        const selected = this._getCurrentKeyboardIcon()?.uri;
         if (restack) {
             for (let fileItem of this._fileList) {
                 fileItem.removeFromGrid(false);
@@ -2035,6 +2086,9 @@ var DesktopManager = class {
         }
         this._sortAllFilesFromGridsByKindStacked(restack);
         this._reassignFilesToDesktop();
+        if (selected) {
+            this._fileList.forEach(icon => icon.isKeyboardSelected = (icon.uri === selected));
+        }
     }
 
     _unstack() {

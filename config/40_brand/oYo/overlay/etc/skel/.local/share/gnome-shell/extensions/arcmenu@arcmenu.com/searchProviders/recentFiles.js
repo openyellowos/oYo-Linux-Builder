@@ -65,7 +65,7 @@ export const RecentFilesSearchProvider = class {
                 if (recentFile)
                     this._recentFiles.push(recentFile);
             } catch (e) {
-                log(e);
+                console.warn(e);
             }
         }));
 

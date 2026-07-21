@@ -54,7 +54,6 @@ export const AppContextMenu = class ArcMenuAppContextMenu extends AppMenu {
             Main.uiGroup.remove_child(this.actor);
             this.destroy();
         });
-        this.actor.connect('key-press-event', this._menuKeyPress.bind(this));
 
         this._newWindowItem.connect('activate', () => this.closeMenus());
         this._onGpuMenuItem.connect('activate', () => this.closeMenus());
@@ -64,12 +63,7 @@ export const AppContextMenu = class ArcMenuAppContextMenu extends AppMenu {
             this.close();
 
             if (this._pinnedAppData) {
-                let sourceSettings;
-                const isFolder = this.sourceActor.folderSettings;
-                if (isFolder)
-                    sourceSettings = this.sourceActor.folderSettings;
-                else
-                    sourceSettings = ArcMenuManager.settings;
+                const sourceSettings = this.sourceActor.folderSettings ?? ArcMenuManager.settings;
 
                 const pinnedAppsList = sourceSettings.get_value('pinned-apps').deepUnpack();
                 for (let i = 0; i < pinnedAppsList.length; i++) {
@@ -156,7 +150,7 @@ export const AppContextMenu = class ArcMenuAppContextMenu extends AppMenu {
 
     closeMenus() {
         this.close();
-        this._menuLayout.arcMenu.toggle();
+        this._menuLayout.closeArcMenu();
     }
 
     _createMenuItem(labelText, position, callback) {
@@ -395,14 +389,6 @@ export const AppContextMenu = class ArcMenuAppContextMenu extends AppMenu {
         super.close(animate);
         this.sourceActor.remove_style_pseudo_class('active');
         this.sourceActor.sync_hover();
-    }
-
-    _menuKeyPress(actor, event) {
-        const symbol = event.get_key_symbol();
-        if (symbol === Clutter.KEY_Menu) {
-            this.toggle();
-            this.sourceActor.sync_hover();
-        }
     }
 
     _onKeyPress() {

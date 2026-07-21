@@ -136,16 +136,6 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
                  * finally "Selected". */
                 _('${VisibleName} Drive Selected')
             ], [
-                this._fileExtra === Enums.FileType.STACK_TOP,
-                /** TRANSLATORS: when using a screen reader, this is the role used when a stack is
-                 * highlighted. Example: if a stack named "pictures" is selected, it will say "pictures Stack".
-                 * It is mandatory to say the file name first and the role after. */
-                _('${VisibleName} Stack'),
-                /** TRANSLATORS: when using a screen reader, this is the role used when a stack is highlighted and
-                 * selected. Example: if a stack named "pictures" is highlighted and selected, it will say "pictures Stack Selected".
-                 * It is mandatory to say the file name first, then the role, and finally "Selected". */
-                _('${VisibleName} Stack Selected')
-            ], [
                 this._isDirectory || (this._fileExtra === Enums.FileType.USER_DIRECTORY_HOME) || (this._fileExtra === Enums.FileType.USER_DIRECTORY_TRASH),
                 /** TRANSLATORS: when using a screen reader, this is the role used when a folder is
                  * highlighted. Example: if a folder named "things" is highlighted, it will say "things Folder".
@@ -208,7 +198,7 @@ var FileItem = class extends desktopIconItem.desktopIconItem {
     _destroy() {
         if (this._queryTrashInfoCancellable) {
             this._queryTrashInfoCancellable.cancel();
-            this._queryFileInfoCancellable = null;
+            this._queryTrashInfoCancellable = null;
         }
         if (this._scheduleTrashRefreshId) {
             GLib.source_remove(this._scheduleTrashRefreshId);

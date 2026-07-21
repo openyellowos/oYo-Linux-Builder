@@ -16,9 +16,6 @@ export default class ArcMenu extends Extension {
     enable() {
         this.settings = this.getSettings();
 
-        // Settings changed in v68.0. Convert the old to new.
-        this._covertOldSettings();
-
         this._resource = Gio.Resource.load(`${this.path}/data/resources.gresource`);
         Gio.resources_register(this._resource);
 
@@ -96,55 +93,6 @@ export default class ArcMenu extends Extension {
         Gio.resources_unregister(this._resource);
         this._resource = null;
         this.settings = null;
-    }
-
-    _covertOldSettings() {
-        const oldButtonTextDefault = this.settings.get_default_value('custom-menu-button-text').unpack();
-        const oldButtonText = this.settings.get_string('custom-menu-button-text');
-        if (oldButtonTextDefault !== oldButtonText) {
-            this.settings.reset('custom-menu-button-text');
-            this.settings.set_string('menu-button-text', oldButtonText);
-        }
-
-        const oldButtonSizeDefault = this.settings.get_default_value('custom-menu-button-icon-size').unpack();
-        const oldButtonSize = this.settings.get_double('custom-menu-button-icon-size');
-        if (oldButtonSizeDefault !== oldButtonSize) {
-            this.settings.reset('custom-menu-button-icon-size');
-            this.settings.set_int('menu-button-icon-size', Math.round(oldButtonSize));
-        }
-
-        const oldButtonPaddingDefault = this.settings.get_default_value('button-padding').unpack();
-        const oldButtonPadding = this.settings.get_int('button-padding');
-        if (oldButtonPaddingDefault !== oldButtonPadding) {
-            this.settings.reset('button-padding');
-            this.settings.set_int('menu-button-padding', oldButtonPadding);
-        }
-
-        const menuButtonIcon = this.settings.get_string('menu-button-icon');
-        switch (menuButtonIcon) {
-        case 'Menu_Icon': {
-            const iconValue = this.settings.get_int('arc-menu-icon');
-            const icon = Constants.MenuIcons[iconValue].IMAGE;
-            if (icon === 'view-app-grid-symbolic')
-                this.settings.set_string('menu-button-icon', icon);
-            else
-                this.settings.set_string('menu-button-icon', `${Constants.RESOURCE_PATH}/actions/${icon}.svg`);
-            break;
-        }
-        case 'Distro_Icon': {
-            const iconValue = this.settings.get_int('distro-icon');
-            const icon = Constants.DistroIcons[iconValue].IMAGE;
-            this.settings.set_string('menu-button-icon', `${Constants.RESOURCE_PATH}/actions/${icon}.svg`);
-            break;
-        }
-        case 'Custom_Icon': {
-            const iconString = this.settings.get_string('custom-menu-button-icon');
-            this.settings.set_string('menu-button-icon', iconString);
-            break;
-        }
-        default:
-            break;
-        }
     }
 
     _getPanelExtensionStates() {
@@ -228,7 +176,7 @@ export default class ArcMenu extends Extension {
         let isFirstPanel = true;
 
         const panelsCount = multiMonitor ? panels.length : Math.min(panels.length, 1);
-        for (var i = 0; i < panelsCount; i++) {
+        for (let i = 0; i < panelsCount; i++) {
             if (!panels[i]) {
                 console.log(`ArcMenu Error: panel ${i} not found. Skipping...`);
                 continue;
