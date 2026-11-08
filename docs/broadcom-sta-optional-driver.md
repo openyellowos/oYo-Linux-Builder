@@ -27,11 +27,16 @@ supported by Broadcom STA: some work better using in-kernel drivers.
 3. Otherwise, if needed: verify the bundled deb's SHA-256, install it using
    offline-only APT sources, let Debian/DKMS build and own the module and
    blacklist, then attempt `modprobe wl`.
-4. If the device was already claimed by another driver, stop with a journal
-   warning. Do not forcibly unbind devices or unload another device's module.
-   Debian recommends reboot after first STA installation; this can prevent
-   immediate Wi-Fi use in the current Live session. This limitation needs
-   hardware testing before claiming full Live Wi-Fi support.
+4. On the *verified* BCM4360 PCI ID `14e4:43a0`, a MacBook Air 7,2 live
+   test showed that `bcma-pci-bridge` can claim the device before the offline
+   package is installed. Following successful DKMS installation, this helper
+   checks that there are no other Broadcom network adapters or other PCI
+   devices directly using the bridge, then attempts the previously verified
+   `modprobe -r b43 ssb bcma` followed by `modprobe wl`. Removal is never
+   forced; an unexpected driver, multi-adapter configuration, or busy module
+   causes a safe failure. This is a targeted exception, not a blanket
+   unbinding policy for arbitrary PCI IDs. Hardware verification of the
+   revised *automatic* path is still required.
 5. On subsequent boots, the installed package and module are reused. The
    systemd service is oneshot, not a persistent daemon.
 
@@ -63,3 +68,17 @@ For actual Live testing, check `journalctl -b -u oyo-broadcom-setup` and
 
 **Keep the source build's `work/chroot` free of broadcom-sta-dkms.** Test the
 actual offline package install in a separate temporary copy, as in Stage 1.
+
+## BCM4360 follow-up verification
+
+On the MacBook Air live tester, the original script installed and built
+`broadcom-sta-dkms` correctly, but `lspci` still showed
+`Kernel driver in use: bcma-pci-bridge` and Wi-Fi was absent. Running
+`modprobe -r b43 ssb bcma && modprobe wl` manually changed the driver to
+`wl`, and the tester confirmed successful web browsing over Wi-Fi.
+
+The code in this revision automates that verified switch **only** on
+`14e4:43a0` with the safety guards noted above. After building a new ISO,
+verify `journalctl -b -u oyo-broadcom-setup.service`,
+`lspci -nnk -d 14e4:`, `nmcli device status`, and successful connectivity.
+Recheck a Broadcom BCM4401B1/b44 Ethernet machine separately.
