@@ -27,6 +27,7 @@ if grep -nEv '^([[:space:]]*|[[:space:]]*#.*|[[:xdigit:]]{4}:[[:xdigit:]]{4})$' 
 fi
 
 TARGET=
+MATCHED_ID=
 for pci in "$PCI_DIR"/*; do
     [ -r "$pci/vendor" ] && [ -r "$pci/device" ] || continue
     vendor=$(cat "$pci/vendor")
@@ -34,6 +35,7 @@ for pci in "$PCI_DIR"/*; do
     id="${vendor#0x}:${device#0x}"
     if grep -Fxiq "$id" "$IDS_FILE"; then
         TARGET=$pci
+        MATCHED_ID=$id
         log "Matched PCI ID $id (${pci##*/})"
         break
     fi
@@ -49,14 +51,23 @@ fi
 [ "${1:-}" = --detect-only ] && exit 0
 
 # Debian's broadcom-sta-dkms blacklists b44/ssb as well as Wi-Fi drivers.
-# Preserve any Broadcom wired network adapter: do not install wl on such PCs.
-# This errs on the side of skipping wl for combinations that need assessment.
+# Preserve Broadcom wired networking, and do not change module ownership on
+# multi-adapter systems until that combination has been separately tested.
 for pci in "$PCI_DIR"/*; do
     [ -r "$pci/vendor" ] && [ -r "$pci/class" ] || continue
-    if [ "$(cat "$pci/vendor")" = 0x14e4 ] &&
-       [ "$(cat "$pci/class")" = 0x020000 ]; then
+    [ "$(cat "$pci/vendor")" = 0x14e4 ] || continue
+    class=$(cat "$pci/class")
+    if [ "$class" = 0x020000 ]; then
         log "WARNING: Broadcom PCI Ethernet (${pci##*/}) detected; refusing STA installation to protect b44"
         exit 0
+    fi
+    if [ "$pci" != "$TARGET" ]; then
+        case "$class" in
+            0x02*)
+                log "WARNING: additional Broadcom network adapter (${pci##*/}) detected; refusing STA installation"
+                exit 0
+                ;;
+        esac
     fi
 done
 
@@ -116,14 +127,42 @@ modinfo -k "$KVER" wl >/dev/null 2>&1 ||
 
 if [ -L "$TARGET/driver" ]; then
     CURRENT=$(basename "$(readlink "$TARGET/driver")")
-    if [ "$CURRENT" != wl ]; then
-        log "WARNING: target PCI device is already bound to $CURRENT; not forcibly unbinding it"
-        log 'A reboot may be required for the Debian package blacklist to take effect'
-        exit 1
-    fi
+    case "$CURRENT" in
+        wl)
+            log "Target PCI device is already bound to wl"
+            ;;
+        bcma-pci-bridge)
+            # Confirmed by a live BCM4360 (14e4:43a0) test: releasing these
+            # modules and loading wl makes the wireless adapter usable.
+            # Never generalize this operation to new allowlisted IDs without
+            # hardware validation. Do not force removal of busy modules.
+            [ "$MATCHED_ID" = 14e4:43a0 ] ||
+                fail "Automatic bcma-to-wl switching is unverified for $MATCHED_ID"
+
+            # modprobe -r affects modules system-wide. Refuse to remove bcma
+            # when another PCI device is also directly using its bridge.
+            for pci in "$PCI_DIR"/*; do
+                [ "$pci" != "$TARGET" ] && [ -L "$pci/driver" ] || continue
+                other_driver=$(basename "$(readlink "$pci/driver")")
+                if [ "$other_driver" = bcma-pci-bridge ]; then
+                    fail "Another PCI device (${pci##*/}) uses bcma-pci-bridge; refusing switch"
+                fi
+            done
+
+            log "Switching BCM4360 from bcma-pci-bridge to wl"
+            modprobe -r b43 ssb bcma ||
+                fail 'Cannot release b43/ssb/bcma (possibly used by another device); not forcing removal'
+            if [ -L "$TARGET/driver" ]; then
+                fail 'Target is still bound after releasing the conflicting modules'
+            fi
+            ;;
+        *)
+            fail "Target is bound to unexpected driver $CURRENT; refusing automatic switch"
+            ;;
+    esac
 fi
 
-# This is a single explicit load, not a custom blacklist or persistent driver shim.
+# Use the Debian-owned module; do not add any global modprobe blacklist here.
 modprobe wl || fail 'Unable to load wl (check kernel/DKMS/Secure Boot and conflicting modules)'
 
 if [ ! -L "$TARGET/driver" ] ||
